@@ -65,6 +65,22 @@ export default function App() {
     setLoading(false);
   };
 
+  const handlePairReset = async () => {
+    setPair(null);
+
+    if (!session?.user?.id) return;
+
+    await supabase
+      .from('profiles')
+      .update({ character: null })
+      .eq('id', session.user.id);
+
+    setProfile((currentProfile) => currentProfile
+      ? { ...currentProfile, character: null }
+      : currentProfile
+    );
+  };
+
   if (loading) return <div className="loading-screen">Loading BearBond...</div>;
 
   if (!session) return <AuthScreen />;
@@ -84,7 +100,7 @@ export default function App() {
       user={session.user}
       pair={pair}
       profile={profile}
-      onPairReset={() => setPair(null)}
+      onPairReset={handlePairReset}
     />
   );
 }
