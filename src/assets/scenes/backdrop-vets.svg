@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 432 768" shape-rendering="crispEdges">
+  <rect width="432" height="768" fill="#9edcff"/>
+  <rect y="420" width="432" height="348" fill="#75a86b"/>
+  <rect y="584" width="432" height="184" fill="#5f6772"/>
+  <rect x="40" y="230" width="352" height="344" fill="#dceef5"/>
+  <rect x="56" y="246" width="320" height="312" fill="#b9d9e8"/>
+  <rect x="88" y="306" width="256" height="48" fill="#355c7d"/>
+  <text x="216" y="338" text-anchor="middle" font-family="monospace" font-size="28" fill="#f7fbff">VETS</text>
+  <rect x="168" y="152" width="96" height="96" fill="#f7fbff"/>
+  <rect x="200" y="168" width="32" height="64" fill="#e34b4b"/>
+  <rect x="184" y="184" width="64" height="32" fill="#e34b4b"/>
+  <rect x="88" y="414" width="96" height="144" fill="#ffffff"/>
+  <rect x="104" y="430" width="64" height="64" fill="#7fc7ff"/>
+  <rect x="232" y="414" width="96" height="144" fill="#ffffff"/>
+  <rect x="248" y="430" width="64" height="64" fill="#7fc7ff"/>
+  <rect x="184" y="474" width="64" height="100" fill="#4f3b32"/>
+  <rect x="204" y="496" width="24" height="38" fill="#7fc7ff"/>
+  <rect x="64" y="190" width="304" height="48" fill="#6e8fa3"/>
+  <rect x="80" y="174" width="272" height="24" fill="#486b80"/>
+  <rect x="10" y="156" width="78" height="92" fill="#6dbb62"/>
+  <rect x="344" y="156" width="78" height="92" fill="#6dbb62"/>
+  <rect x="34" y="230" width="30" height="110" fill="#6b402b"/>
+  <rect x="370" y="230" width="30" height="110" fill="#6b402b"/>
+  <rect x="32" y="626" width="368" height="36" fill="#8c969e"/>
+  <rect x="64" y="696" width="304" height="24" fill="#8c969e"/>
+  <rect x="24" y="376" width="72" height="32" fill="#fff1ad"/>
+  <rect x="336" y="376" width="72" height="32" fill="#fff1ad"/>
+</svg>
