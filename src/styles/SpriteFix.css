@@ -38,3 +38,39 @@
   max-width: none;
   flex: 0 0 auto;
 }
+
+.scene-selector-top {
+  position: absolute;
+  top: 72px;
+  left: 1rem;
+  right: 1rem;
+  z-index: 45;
+}
+
+.scene-selector-top .pixel-select {
+  box-shadow: 4px 4px 0px rgba(0,0,0,0.28);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.settings-start-over-btn {
+  font-size: 0.58rem;
+  padding: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.pixel-alert-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.pixel-alert-actions .pixel-btn {
+  font-size: 0.58rem;
+  padding: 0.75rem 0.35rem;
+}
+
+.admin-confirm-title {
+  font-size: 0.75rem;
+  margin-bottom: 0.8rem;
+  color: var(--text-dark);
+}
