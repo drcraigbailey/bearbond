@@ -134,6 +134,20 @@ export default function MainBearScene({ user, pair, profile, onPairReset }) {
     setTimeout(() => setToastMessage(''), 4000);
   };
 
+  const sendClosedAppPush = async (actionId) => {
+    try {
+      await supabase.functions.invoke('send-action-push', {
+        body: {
+          pairId: pair.id,
+          senderId: user.id,
+          actionName: actionId,
+        },
+      });
+    } catch (error) {
+      console.warn('Could not send push notification:', error);
+    }
+  };
+
   const handleSendAction = async (actionId) => {
     // Play the animation immediately on our screen too
     setCurrentAnimation(actionId);
@@ -151,6 +165,8 @@ export default function MainBearScene({ user, pair, profile, onPairReset }) {
       last_action_from: user.id,
       last_action_at: new Date().toISOString()
     }).eq('id', pair.id);
+
+    sendClosedAppPush(actionId);
   };
 
   const handleChangeScene = async (e) => {
