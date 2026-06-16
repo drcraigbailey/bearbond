@@ -162,10 +162,10 @@ body, html {
 }
 
 .top-bar {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 0.8rem 1rem;
+  padding: 0.65rem 1rem;
   background: var(--ui-bg);
   border-bottom: var(--pixel-border);
 }
@@ -176,6 +176,7 @@ body, html {
   border: 2px solid var(--text-dark);
   background: white;
   border-radius: 4px;
+  justify-self: start;
 }
 
 .icon-btn {
@@ -183,6 +184,33 @@ body, html {
   border: none;
   font-size: 1.2rem;
   cursor: pointer;
+  justify-self: end;
+}
+
+.secret-logo-btn {
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--text-dark);
+  background: #fff6df;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px rgba(0,0,0,0.25);
+}
+
+.secret-logo-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 0px 0px 0px rgba(0,0,0,0.25);
+}
+
+.top-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 }
 
 .settings-popover {
@@ -329,6 +357,132 @@ body, html {
   border: 2px solid var(--text-dark);
   font-size: 0.6rem; 
   background: white;
+}
+
+/* --- ADMIN PANEL --- */
+.admin-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.admin-panel {
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: var(--bg-color);
+  border: var(--pixel-border);
+  padding: 1rem;
+  box-shadow: 8px 8px 0px rgba(0,0,0,0.65);
+}
+
+.admin-panel-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-panel-header .settings-title {
+  margin-bottom: 0;
+  text-align: left;
+}
+
+.admin-close-btn {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--text-dark);
+  background: #ff8a80;
+  color: var(--text-dark);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.admin-denied-card,
+.admin-message {
+  background: white;
+  border: 2px solid var(--text-dark);
+  padding: 0.75rem;
+  font-size: 0.52rem;
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+
+.admin-help-text {
+  margin-top: 0.65rem;
+  color: #6d4c41;
+}
+
+.admin-section {
+  margin-top: 1rem;
+}
+
+.admin-section h3 {
+  font-size: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.admin-list-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  align-items: center;
+  background: white;
+  border: 2px solid var(--text-dark);
+  padding: 0.6rem;
+}
+
+.admin-row-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  line-height: 1.5;
+}
+
+.admin-row-copy strong,
+.admin-row-copy span {
+  overflow-wrap: anywhere;
+}
+
+.admin-row-copy strong {
+  font-size: 0.5rem;
+}
+
+.admin-row-copy span {
+  font-size: 0.42rem;
+  color: #6d4c41;
+}
+
+.admin-mini-btn {
+  border: 2px solid var(--text-dark);
+  background: var(--secondary-color);
+  color: var(--text-dark);
+  padding: 0.5rem;
+  font-size: 0.45rem;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px rgba(0,0,0,0.25);
+}
+
+.admin-mini-btn.danger {
+  background: #ff8a80;
+}
+
+.admin-mini-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* --- CUSTOM PIXEL ALERTS --- */
