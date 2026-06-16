@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import '../styles/BearBond.css';
+import '../styles/SpriteFix.css';
 
 // --- YOGI SPRITES (PNGs) ---
 import yogiMain from '../assets/bear/main.png';
