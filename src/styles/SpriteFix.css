@@ -1,3 +1,8 @@
+.bear-sprite-wrapper {
+  width: 330px;
+  height: 330px;
+}
+
 .bear-frame-viewport {
   overflow: hidden;
   display: flex;
@@ -5,6 +10,8 @@
   justify-content: flex-start;
   max-width: 250px;
   max-height: 250px;
+  transform: scale(1.32);
+  transform-origin: center bottom;
 }
 
 .bear-sprite-image,
