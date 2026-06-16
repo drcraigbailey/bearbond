@@ -1,6 +1,6 @@
 .bear-sprite-wrapper {
-  width: 330px;
-  height: 330px;
+  width: 345px;
+  height: 345px;
 }
 
 .bear-frame-viewport {
@@ -10,8 +10,12 @@
   justify-content: flex-start;
   max-width: 250px;
   max-height: 250px;
-  transform: scale(1.32);
+  transform: scale(1.42);
   transform-origin: center bottom;
+}
+
+.craig-sprite-wrapper.idle-sprite-wrapper .bear-frame-viewport {
+  transform: scale(1.18);
 }
 
 .bear-sprite-image,
