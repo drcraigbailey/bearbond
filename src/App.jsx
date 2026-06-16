@@ -79,5 +79,12 @@ export default function App() {
   
   if (!pair) return <PairingScreen user={session.user} onPaired={setPair} />;
 
-  return <MainBearScene user={session.user} pair={pair} profile={profile} />;
+  return (
+    <MainBearScene
+      user={session.user}
+      pair={pair}
+      profile={profile}
+      onPairReset={() => setPair(null)}
+    />
+  );
 }
