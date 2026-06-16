@@ -135,6 +135,7 @@ body, html {
 
 .pixel-btn.primary { background: var(--primary-color); }
 .pixel-btn.secondary { background: var(--secondary-color); }
+.pixel-btn.danger { background: #ff8a80; }
 .pixel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .code-display {
@@ -182,6 +183,63 @@ body, html {
   border: none;
   font-size: 1.2rem;
   cursor: pointer;
+}
+
+.settings-popover {
+  position: absolute;
+  top: 64px;
+  right: 12px;
+  z-index: 220;
+  width: min(330px, calc(100% - 24px));
+  background: var(--bg-color);
+  border: var(--pixel-border);
+  padding: 1rem;
+  box-shadow: 6px 6px 0px rgba(0,0,0,0.35);
+}
+
+.settings-title {
+  font-size: 0.75rem;
+  margin-bottom: 0.9rem;
+  text-align: center;
+}
+
+.setting-toggle-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  background: white;
+  border: 2px solid var(--text-dark);
+  padding: 0.75rem;
+  margin-bottom: 0.9rem;
+  cursor: pointer;
+}
+
+.setting-checkbox {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--secondary-color);
+  flex-shrink: 0;
+}
+
+.setting-toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  line-height: 1.5;
+}
+
+.setting-toggle-label {
+  font-size: 0.55rem;
+}
+
+.setting-toggle-hint {
+  font-size: 0.42rem;
+  color: #6d4c41;
+}
+
+.settings-logout-btn {
+  font-size: 0.65rem;
+  padding: 0.8rem;
 }
 
 .toast-notification {
