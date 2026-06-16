@@ -29,6 +29,8 @@ const CRAIG_MAP = {
   idle: craigMain, wave: craigWave, love: craigKiss, hug: craigHug, honey: craigHoney, sleep: craigNight, dance: craigCheeky, celebrate: craigCane,
 };
 
+const FRAME_COUNT = 6;
+
 export default function BearSprite({ currentAnimation, onAnimationComplete, character = 'yogi' }) {
   const [frame, setFrame] = useState(0);
 
@@ -37,7 +39,7 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
     if (currentAnimation === 'idle') return;
 
     const frameInterval = setInterval(() => {
-      setFrame((prevFrame) => (prevFrame + 1) % 6);
+      setFrame((prevFrame) => (prevFrame + 1) % FRAME_COUNT);
     }, 120);
 
     const actionTimeout = setTimeout(() => {
@@ -52,30 +54,17 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
 
   const SPRITE_MAP = character === 'craig' ? CRAIG_MAP : YOGI_MAP;
   const currentSpriteSrc = SPRITE_MAP[currentAnimation] || SPRITE_MAP.idle;
-  
   const isIdle = currentAnimation === 'idle';
-  const isCraig = character === 'craig';
 
   return (
-    <div className="bear-sprite-wrapper">
+    <div className={`bear-sprite-wrapper ${character === 'craig' ? 'craig-sprite-wrapper' : ''}`}>
       <div 
         className="bear-sprite-animated"
         style={{
           backgroundImage: `url(${currentSpriteSrc})`,
-          
-          /* 
-             LOGIC: 
-             If Craig, we use '850%' size to zoom him in to fill the box 
-             and '50%' vertical position to center his height perfectly.
-          */
-          backgroundSize: isIdle 
-            ? 'contain' 
-            : (isCraig ? '850% 100%' : '600% 100%'),
-            
-          backgroundPosition: isIdle 
-            ? 'center' 
-            : (isCraig ? `${(frame / 5) * 100}% 50%` : `${(frame / 5) * 100}% 0%`),
-            
+          // Animated sheets are 6 frames wide. Use auto height so Craig keeps the same proportions as main1.png.
+          backgroundSize: isIdle ? 'contain' : `${FRAME_COUNT * 100}% auto`,
+          backgroundPosition: isIdle ? 'center' : `${(frame / (FRAME_COUNT - 1)) * 100}% center`,
           backgroundRepeat: 'no-repeat',
           imageRendering: 'pixelated'
         }}
