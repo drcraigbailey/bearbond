@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 const getAdminEmails = () => {
@@ -32,7 +32,7 @@ export default function AdminPanel({ user, profile, onClose }) {
     return matchedProfile?.email || shortId(id);
   };
 
-  const loadAdminData = async () => {
+  const loadAdminData = useCallback(async () => {
     if (!isAdmin) {
       setLoading(false);
       return;
@@ -43,7 +43,7 @@ export default function AdminPanel({ user, profile, onClose }) {
 
     const [{ data: profileData, error: profileError }, { data: pairData, error: pairError }] = await Promise.all([
       supabase.from('profiles').select('*').order('email', { ascending: true }),
-      supabase.from('pairs').select('*').order('created_at', { ascending: false }),
+      supabase.from('pairs').select('*').order('id', { ascending: false }),
     ]);
 
     if (profileError || pairError) {
@@ -54,11 +54,11 @@ export default function AdminPanel({ user, profile, onClose }) {
     }
 
     setLoading(false);
-  };
+  }, [isAdmin]);
 
   useEffect(() => {
     loadAdminData();
-  }, [isAdmin]);
+  }, [loadAdminData]);
 
   const deleteProfile = async (profileToDelete) => {
     if (profileToDelete.id === user.id) {
