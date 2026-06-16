@@ -7,7 +7,7 @@ import { SCENES } from '../data/scenes';
 import { ACTIONS } from '../data/actions';
 import logoImg from '../assets/bear/main.png';
 
-export default function MainBearScene({ user, pair, profile }) {
+export default function MainBearScene({ user, pair, profile, onPairReset }) {
   const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
   const [currentAnimation, setCurrentAnimation] = useState('idle');
   const [toastMessage, setToastMessage] = useState('');
@@ -16,6 +16,7 @@ export default function MainBearScene({ user, pair, profile }) {
   const [adminOpen, setAdminOpen] = useState(false);
   const [secretTapCount, setSecretTapCount] = useState(0);
   const [remainLoggedIn, setRemainLoggedIn] = useState(getRemainLoggedInPreference());
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // If I picked Yogi, display Craig. If I picked Craig, display Yogi.
   const displayCharacter = profile.character === 'yogi' ? 'craig' : 'yogi';
@@ -35,12 +36,22 @@ export default function MainBearScene({ user, pair, profile }) {
     const pairSub = supabase.channel(`pair_updates_${pair.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` }, 
       (payload) => {
+        if (payload.new.user_one_id !== user.id && payload.new.user_two_id !== user.id) {
+          showToast('Pairing was reset.');
+          if (onPairReset) onPairReset();
+          return;
+        }
+
         if (payload.new.active_scene !== activeScene) {
           setActiveScene(payload.new.active_scene);
         }
-        if (payload.new.user_two_id) {
-          setIsPartnerConnected(true);
-        }
+
+        setIsPartnerConnected(!!payload.new.user_two_id);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` }, 
+      () => {
+        showToast('Pairing was reset.');
+        if (onPairReset) onPairReset();
       }).subscribe();
 
     // 2. Subscribe to Action Events
@@ -80,7 +91,7 @@ export default function MainBearScene({ user, pair, profile }) {
       supabase.removeChannel(pairSub);
       supabase.removeChannel(eventSub);
     };
-  }, [pair.id, user.id, activeScene, displayCharacter]);
+  }, [pair.id, user.id, activeScene, displayCharacter, onPairReset]);
 
   useEffect(() => {
     if (!secretTapCount) return undefined;
@@ -142,6 +153,46 @@ export default function MainBearScene({ user, pair, profile }) {
     }
   };
 
+  const performStartAgain = async () => {
+    setConfirmDialog(null);
+    setSettingsOpen(false);
+
+    await supabase.from('pair_events').delete().eq('pair_id', pair.id);
+
+    const resetPayload = {
+      user_two_id: null,
+      active_scene: 'home',
+      last_action: null,
+      last_action_from: null,
+      last_action_at: null,
+    };
+
+    const { error } = pair.user_one_id === user.id
+      ? await supabase.from('pairs').delete().eq('id', pair.id)
+      : await supabase.from('pairs').update(resetPayload).eq('id', pair.id);
+
+    if (error) {
+      showToast(`Could not reset: ${error.message}`);
+      return;
+    }
+
+    if (onPairReset) onPairReset();
+  };
+
+  const handleStartAgainClick = () => {
+    setConfirmDialog({
+      title: 'Start Again?',
+      message: 'This will leave the current pair so you can create or join a new connection.',
+      confirmLabel: 'Start Again',
+      onConfirm: performStartAgain,
+    });
+  };
+
+  const handleConfirm = async () => {
+    if (!confirmDialog?.onConfirm) return;
+    await confirmDialog.onConfirm();
+  };
+
   const currentSceneData = SCENES[activeScene] || SCENES['home'];
 
   return (
@@ -168,6 +219,14 @@ export default function MainBearScene({ user, pair, profile }) {
         </button>
       </div>
 
+      <div className="scene-selector-wrapper scene-selector-top">
+        <select value={activeScene} onChange={handleChangeScene} className="pixel-select">
+          {Object.values(SCENES).map(scene => (
+            <option key={scene.id} value={scene.id}>{scene.name}</option>
+          ))}
+        </select>
+      </div>
+
       {settingsOpen && (
         <div className="settings-popover">
           <h2 className="settings-title">Settings</h2>
@@ -183,6 +242,9 @@ export default function MainBearScene({ user, pair, profile }) {
               <span className="setting-toggle-hint">Keep BearBond open after closing the app.</span>
             </span>
           </label>
+          <button onClick={handleStartAgainClick} className="pixel-btn secondary settings-start-over-btn">
+            Start Again / Re-pair
+          </button>
           <button onClick={handleLogout} className="pixel-btn danger settings-logout-btn">
             Log Out
           </button>
@@ -211,15 +273,24 @@ export default function MainBearScene({ user, pair, profile }) {
             </button>
           ))}
         </div>
-        
-        <div className="scene-selector-wrapper">
-          <select value={activeScene} onChange={handleChangeScene} className="pixel-select">
-            {Object.values(SCENES).map(scene => (
-              <option key={scene.id} value={scene.id}>{scene.name}</option>
-            ))}
-          </select>
-        </div>
       </div>
+
+      {confirmDialog && (
+        <div className="pixel-alert-overlay start-again-confirm-overlay">
+          <div className="pixel-alert-box start-again-confirm-box">
+            <h3 className="admin-confirm-title">{confirmDialog.title}</h3>
+            <p className="pixel-alert-message">{confirmDialog.message}</p>
+            <div className="pixel-alert-actions">
+              <button onClick={() => setConfirmDialog(null)} className="pixel-btn secondary">
+                Cancel
+              </button>
+              <button onClick={handleConfirm} className="pixel-btn primary">
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
