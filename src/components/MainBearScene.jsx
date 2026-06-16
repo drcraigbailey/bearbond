@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { supabase, getRemainLoggedInPreference, setRemainLoggedInPreference } from '../lib/supabaseClient';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import BearSprite from './BearSprite';
+import AdminPanel from './AdminPanel';
 import { SCENES } from '../data/scenes';
 import { ACTIONS } from '../data/actions';
+import logoImg from '../assets/bear/main.png';
 
 export default function MainBearScene({ user, pair, profile }) {
   const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
@@ -11,6 +13,8 @@ export default function MainBearScene({ user, pair, profile }) {
   const [toastMessage, setToastMessage] = useState('');
   const [isPartnerConnected, setIsPartnerConnected] = useState(!!pair.user_two_id);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [secretTapCount, setSecretTapCount] = useState(0);
   const [remainLoggedIn, setRemainLoggedIn] = useState(getRemainLoggedInPreference());
 
   // If I picked Yogi, display Craig. If I picked Craig, display Yogi.
@@ -78,6 +82,13 @@ export default function MainBearScene({ user, pair, profile }) {
     };
   }, [pair.id, user.id, activeScene, displayCharacter]);
 
+  useEffect(() => {
+    if (!secretTapCount) return undefined;
+
+    const resetTapTimer = setTimeout(() => setSecretTapCount(0), 1800);
+    return () => clearTimeout(resetTapTimer);
+  }, [secretTapCount]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 4000);
@@ -120,6 +131,17 @@ export default function MainBearScene({ user, pair, profile }) {
     await supabase.auth.signOut();
   };
 
+  const handleSecretLogoTap = () => {
+    const nextTapCount = secretTapCount + 1;
+    setSecretTapCount(nextTapCount);
+
+    if (nextTapCount >= 5) {
+      setSecretTapCount(0);
+      setSettingsOpen(false);
+      setAdminOpen(true);
+    }
+  };
+
   const currentSceneData = SCENES[activeScene] || SCENES['home'];
 
   return (
@@ -128,6 +150,15 @@ export default function MainBearScene({ user, pair, profile }) {
         <div className="status-badge">
           {isPartnerConnected ? '🟢 Connected' : '🔴 Waiting...'}
         </div>
+
+        <button
+          onClick={handleSecretLogoTap}
+          className="secret-logo-btn"
+          aria-label="BearBond logo"
+        >
+          <img src={logoImg} alt="BearBond" className="top-logo" />
+        </button>
+
         <button
           onClick={() => setSettingsOpen((open) => !open)}
           className="icon-btn"
@@ -157,6 +188,8 @@ export default function MainBearScene({ user, pair, profile }) {
           </button>
         </div>
       )}
+
+      {adminOpen && <AdminPanel user={user} profile={profile} onClose={() => setAdminOpen(false)} />}
 
       {toastMessage && <div className="toast-notification">{toastMessage}</div>}
 
