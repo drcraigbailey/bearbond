@@ -211,7 +211,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset }) {
   const handleStartAgainClick = () => {
     setConfirmDialog({
       title: 'Start Again?',
-      message: 'This will leave the current pair so you can create or join a new connection.',
+      message: 'This will leave the current pair, clear your chosen character, and let you choose again before pairing.',
       confirmLabel: 'Start Again',
       onConfirm: performStartAgain,
     });
