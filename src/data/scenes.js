@@ -1,19 +1,25 @@
-// Import your uploaded assets
-import bgHome from '../assets/scenes/backdrop-home.png';
-import bgUni from '../assets/scenes/backdrop-uni.png';
-import bgHill from '../assets/scenes/backdrop-hill.png';
-import bgWork from '../assets/scenes/backdrop-work.png';
-import bgPub from '../assets/scenes/backdrop-pub.png';
-import bgShop from '../assets/scenes/backdrop-shop.svg';
-import bgVets from '../assets/scenes/backdrop-vets.svg';
+// Load all scene backdrop assets that exist in the repo.
+// PNGs are preferred, with SVG fallbacks for shop/vets so the app still builds if the PNGs are missing locally.
+const sceneAssets = import.meta.glob([
+  '../assets/scenes/backdrop-*.png',
+  '../assets/scenes/backdrop-*.svg',
+], {
+  eager: true,
+  query: '?url',
+  import: 'default',
+});
+
+const getSceneImage = (preferredFile, fallbackFile = preferredFile) => {
+  return sceneAssets[`../assets/scenes/${preferredFile}`] || sceneAssets[`../assets/scenes/${fallbackFile}`];
+};
 
 // The "export const" is required here to match the import { SCENES } in your other files.
 export const SCENES = {
-  home: { id: 'home', name: 'Cosy Cabin', image: bgHome },
-  hill: { id: 'hill', name: 'Sunny Hills', image: bgHill },
-  uni: { id: 'uni', name: 'University', image: bgUni },
-  work: { id: 'work', name: 'Cafe / Work', image: bgWork },
-  shop: { id: 'shop', name: 'Shop', image: bgShop },
-  vets: { id: 'vets', name: 'Vets', image: bgVets },
-  pub: { id: 'pub', name: 'The Golden Tankard', image: bgPub },
+  home: { id: 'home', name: 'Cosy Cabin', image: getSceneImage('backdrop-home.png') },
+  hill: { id: 'hill', name: 'Sunny Hills', image: getSceneImage('backdrop-hill.png') },
+  uni: { id: 'uni', name: 'University', image: getSceneImage('backdrop-uni.png') },
+  work: { id: 'work', name: 'Cafe / Work', image: getSceneImage('backdrop-work.png') },
+  shop: { id: 'shop', name: 'Shop', image: getSceneImage('backdrop-shop.png', 'backdrop-shop.svg') },
+  vets: { id: 'vets', name: 'Vets', image: getSceneImage('backdrop-vets.png', 'backdrop-vets.svg') },
+  pub: { id: 'pub', name: 'The Golden Tankard', image: getSceneImage('backdrop-pub.png') },
 };
