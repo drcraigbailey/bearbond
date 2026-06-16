@@ -5,6 +5,7 @@ import AuthScreen from './components/AuthScreen';
 import CharacterSelectScreen from './components/CharacterSelectScreen';
 import PairingScreen from './components/PairingScreen';
 import MainBearScene from './components/MainBearScene';
+import { registerPushNotifications } from './lib/pushNotifications';
 import './styles/BearBond.css';
 
 export default function App() {
@@ -43,6 +44,12 @@ export default function App() {
       CapacitorApp.removeAllListeners();
     };
   }, []);
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      registerPushNotifications(session.user.id);
+    }
+  }, [session?.user?.id]);
 
   const fetchProfileAndPair = async (userId, email) => {
     // 1. Get user profile (or create one)
