@@ -15,6 +15,7 @@ export default function AdminPanel({ user, profile, onClose }) {
   const [pairs, setPairs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const adminEmails = useMemo(getAdminEmails, []);
   const isAdmin = profile?.role === 'admin' || adminEmails.includes(user.email?.toLowerCase());
@@ -60,15 +61,7 @@ export default function AdminPanel({ user, profile, onClose }) {
     loadAdminData();
   }, [loadAdminData]);
 
-  const deleteProfile = async (profileToDelete) => {
-    if (profileToDelete.id === user.id) {
-      setMessage('You cannot delete the active admin profile from here.');
-      return;
-    }
-
-    const confirmed = window.confirm(`Delete profile for ${profileToDelete.email || shortId(profileToDelete.id)}? This removes their profile row and any pair rooms they are in.`);
-    if (!confirmed) return;
-
+  const performDeleteProfile = async (profileToDelete) => {
     setLoading(true);
     setMessage('');
 
@@ -103,19 +96,30 @@ export default function AdminPanel({ user, profile, onClose }) {
 
     if (profileDeleteError) {
       setMessage(profileDeleteError.message);
-    } else {
-      setMessage('Profile deleted.');
-      await loadAdminData();
+      setLoading(false);
       return;
     }
 
-    setLoading(false);
+    setMessage('Profile deleted.');
+    await loadAdminData();
   };
 
-  const unpair = async (pair) => {
-    const confirmed = window.confirm('Unpair this room and put it back into waiting mode?');
-    if (!confirmed) return;
+  const deleteProfile = (profileToDelete) => {
+    if (profileToDelete.id === user.id) {
+      setMessage('You cannot delete the active admin profile from here.');
+      return;
+    }
 
+    setConfirmDialog({
+      title: 'Delete Profile?',
+      message: `Delete profile for ${profileToDelete.email || shortId(profileToDelete.id)}? This removes their profile row and any pair rooms they are in.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => performDeleteProfile(profileToDelete),
+    });
+  };
+
+  const performUnpair = async (pair) => {
     setLoading(true);
     setMessage('');
 
@@ -140,6 +144,24 @@ export default function AdminPanel({ user, profile, onClose }) {
 
     setMessage('Pair unlinked.');
     await loadAdminData();
+  };
+
+  const unpair = (pair) => {
+    setConfirmDialog({
+      title: 'Unpair Bears?',
+      message: 'Unpair this room and put it back into waiting mode?',
+      confirmLabel: 'Unpair',
+      danger: false,
+      onConfirm: () => performUnpair(pair),
+    });
+  };
+
+  const handleConfirm = async () => {
+    if (!confirmDialog?.onConfirm) return;
+
+    const action = confirmDialog.onConfirm;
+    setConfirmDialog(null);
+    await action();
   };
 
   return (
@@ -205,6 +227,26 @@ export default function AdminPanel({ user, profile, onClose }) {
           </>
         )}
       </div>
+
+      {confirmDialog && (
+        <div className="pixel-alert-overlay admin-confirm-overlay">
+          <div className="pixel-alert-box admin-confirm-box">
+            <h3 className="admin-confirm-title">{confirmDialog.title}</h3>
+            <p className="pixel-alert-message">{confirmDialog.message}</p>
+            <div className="pixel-alert-actions">
+              <button onClick={() => setConfirmDialog(null)} className="pixel-btn secondary">
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                className={`pixel-btn ${confirmDialog.danger ? 'danger' : 'primary'}`}
+              >
+                {confirmDialog.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
