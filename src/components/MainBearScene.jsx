@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, getRemainLoggedInPreference, setRemainLoggedInPreference } from '../lib/supabaseClient';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import BearSprite from './BearSprite';
 import { SCENES } from '../data/scenes';
@@ -10,6 +10,8 @@ export default function MainBearScene({ user, pair, profile }) {
   const [currentAnimation, setCurrentAnimation] = useState('idle');
   const [toastMessage, setToastMessage] = useState('');
   const [isPartnerConnected, setIsPartnerConnected] = useState(!!pair.user_two_id);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [remainLoggedIn, setRemainLoggedIn] = useState(getRemainLoggedInPreference());
 
   // If I picked Yogi, display Craig. If I picked Craig, display Yogi.
   const displayCharacter = profile.character === 'yogi' ? 'craig' : 'yogi';
@@ -106,6 +108,18 @@ export default function MainBearScene({ user, pair, profile }) {
     await supabase.from('pairs').update({ active_scene: newScene }).eq('id', pair.id);
   };
 
+  const handleRemainLoggedInChange = (e) => {
+    const shouldRemainLoggedIn = e.target.checked;
+    setRemainLoggedIn(shouldRemainLoggedIn);
+    setRemainLoggedInPreference(shouldRemainLoggedIn);
+    showToast(shouldRemainLoggedIn ? 'You will stay logged in!' : 'Session-only login enabled!');
+  };
+
+  const handleLogout = async () => {
+    setSettingsOpen(false);
+    await supabase.auth.signOut();
+  };
+
   const currentSceneData = SCENES[activeScene] || SCENES['home'];
 
   return (
@@ -114,8 +128,35 @@ export default function MainBearScene({ user, pair, profile }) {
         <div className="status-badge">
           {isPartnerConnected ? '🟢 Connected' : '🔴 Waiting...'}
         </div>
-        <button onClick={() => supabase.auth.signOut()} className="icon-btn">⚙️</button>
+        <button
+          onClick={() => setSettingsOpen((open) => !open)}
+          className="icon-btn"
+          aria-label="Open settings"
+        >
+          ⚙️
+        </button>
       </div>
+
+      {settingsOpen && (
+        <div className="settings-popover">
+          <h2 className="settings-title">Settings</h2>
+          <label className="setting-toggle-row">
+            <input
+              type="checkbox"
+              checked={remainLoggedIn}
+              onChange={handleRemainLoggedInChange}
+              className="setting-checkbox"
+            />
+            <span className="setting-toggle-copy">
+              <span className="setting-toggle-label">Remain logged in</span>
+              <span className="setting-toggle-hint">Keep BearBond open after closing the app.</span>
+            </span>
+          </label>
+          <button onClick={handleLogout} className="pixel-btn danger settings-logout-btn">
+            Log Out
+          </button>
+        </div>
+      )}
 
       {toastMessage && <div className="toast-notification">{toastMessage}</div>}
 
