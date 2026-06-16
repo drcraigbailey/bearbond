@@ -1,39 +1,64 @@
+import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from './supabaseClient';
 
-/**
- * PLACEHOLDER: Capacitor + Firebase Cloud Messaging (FCM) Setup
- * When packaging for Android, this function registers the device token.
- */
-export async function registerForPushNotifications(userId) {
-  try {
-    // 1. Request permission
-    let permStatus = await PushNotifications.checkPermissions();
-    if (permStatus.receive === 'prompt') {
-      permStatus = await PushNotifications.requestPermissions();
-    }
-    if (permStatus.receive !== 'granted') return;
+const PUSH_CHANNEL_ID = 'bearbond-actions';
 
-    // 2. Register with Apple / Google
-    await PushNotifications.register();
+const savePushToken = async ({ userId, token }) => {
+  if (!userId || !token) return;
 
-    // 3. Listen for registration to get the FCM token
-    PushNotifications.addListener('registration', async (token) => {
-      // Save token to Supabase
-      await supabase.from('device_tokens').upsert({
-        user_id: userId,
-        platform: 'android',
-        token: token.value
-      });
-    });
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      push_token: token,
+      push_platform: Capacitor.getPlatform(),
+      push_updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
 
-    // 4. Listen for incoming notifications while app is open
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('Push received: ', notification);
-      // In-app toast logic can go here if needed
-    });
-
-  } catch (error) {
-    console.error('Push setup failed:', error);
+  if (error) {
+    console.warn('Could not save push token:', error.message);
   }
-}
+};
+
+export const registerPushNotifications = async (userId) => {
+  if (!userId || !Capacitor.isNativePlatform()) return;
+
+  try {
+    await PushNotifications.createChannel({
+      id: PUSH_CHANNEL_ID,
+      name: 'BearBond actions',
+      description: 'Notifications when your partner sends a BearBond action.',
+      importance: 5,
+      visibility: 1,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+    });
+
+    await PushNotifications.removeAllListeners();
+
+    await PushNotifications.addListener('registration', async (token) => {
+      await savePushToken({ userId, token: token.value });
+    });
+
+    await PushNotifications.addListener('registrationError', (error) => {
+      console.warn('Push registration error:', error.error);
+    });
+
+    let permissionStatus = await PushNotifications.checkPermissions();
+
+    if (permissionStatus.receive === 'prompt') {
+      permissionStatus = await PushNotifications.requestPermissions();
+    }
+
+    if (permissionStatus.receive !== 'granted') {
+      console.warn('Push notifications permission was not granted.');
+      return;
+    }
+
+    await PushNotifications.register();
+  } catch (error) {
+    console.warn('Could not register push notifications:', error);
+  }
+};
