@@ -7,6 +7,53 @@ import { SCENES } from '../data/scenes';
 import { ACTIONS } from '../data/actions';
 import logoImg from '../assets/bear/main.png';
 
+const BEARBOND_NOTIFICATION_CHANNEL = 'bearbond-actions';
+
+const setupLocalNotifications = async () => {
+  try {
+    const currentPermission = await LocalNotifications.checkPermissions();
+
+    if (currentPermission.display !== 'granted') {
+      const requestedPermission = await LocalNotifications.requestPermissions();
+      if (requestedPermission.display !== 'granted') return false;
+    }
+
+    await LocalNotifications.createChannel({
+      id: BEARBOND_NOTIFICATION_CHANNEL,
+      name: 'BearBond actions',
+      description: 'Notifications when your partner sends a BearBond action.',
+      importance: 5,
+      visibility: 1,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+    });
+
+    return true;
+  } catch (error) {
+    console.log('Local notifications are only available on native Android/iOS.', error);
+    return false;
+  }
+};
+
+const sendLocalActionNotification = async ({ partnerName, actionName }) => {
+  const canNotify = await setupLocalNotifications();
+
+  if (!canNotify) return;
+
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        title: 'BearBond',
+        body: `${partnerName} just sent you a ${actionName}! ❤️`,
+        id: Math.floor(Date.now() % 2147483647),
+        channelId: BEARBOND_NOTIFICATION_CHANNEL,
+        autoCancel: true,
+      }
+    ]
+  });
+};
+
 export default function MainBearScene({ user, pair, profile, onPairReset }) {
   const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
   const [currentAnimation, setCurrentAnimation] = useState('idle');
@@ -22,15 +69,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset }) {
   const displayCharacter = profile.character === 'yogi' ? 'craig' : 'yogi';
 
   useEffect(() => {
-    // Request permission to send Android notifications
-    const requestPermissions = async () => {
-      try {
-        await LocalNotifications.requestPermissions();
-      } catch (e) {
-        console.log("Not running on a native device, skipping notification permissions.");
-      }
-    };
-    requestPermissions();
+    setupLocalNotifications();
 
     // 1. Subscribe to Room changes (Scene changes & partner joining)
     const pairSub = supabase.channel(`pair_updates_${pair.id}`)
@@ -68,21 +107,11 @@ export default function MainBearScene({ user, pair, profile, onPairReset }) {
           const partnerName = displayCharacter.charAt(0).toUpperCase() + displayCharacter.slice(1);
           showToast(`${partnerName} sent a ${event.action_name}!`);
 
-          // Trigger Native Android System Notification
+          // Trigger Native Android System Notification while the app is active/backgrounded
           try {
-            await LocalNotifications.schedule({
-              notifications: [
-                {
-                  title: "BearBond",
-                  body: `${partnerName} just sent you a ${event.action_name}! ❤️`,
-                  id: new Date().getTime(),
-                  schedule: { at: new Date(Date.now() + 100) }, // Trigger immediately
-                  smallIcon: "ic_stat_icon_config_sample", // Uses the default app icon
-                }
-              ]
-            });
-          } catch (e) {
-            console.log("Local notifications only fire on native Android/iOS");
+            await sendLocalActionNotification({ partnerName, actionName: event.action_name });
+          } catch (error) {
+            console.log('Could not schedule local notification.', error);
           }
         }
       }).subscribe();
