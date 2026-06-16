@@ -90,9 +90,10 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
   }, [currentSpriteSrc, isIdle]);
 
   const frameSize = useMemo(() => getFittedFrameSize(frameRatio || 1), [frameRatio]);
+  const spriteStateClass = isIdle ? 'idle-sprite-wrapper' : 'action-sprite-wrapper';
 
   return (
-    <div className={`bear-sprite-wrapper ${character === 'craig' ? 'craig-sprite-wrapper' : ''}`}>
+    <div className={`bear-sprite-wrapper ${character === 'craig' ? 'craig-sprite-wrapper' : ''} ${spriteStateClass}`}>
       <div
         className="bear-frame-viewport"
         style={{
