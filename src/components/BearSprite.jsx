@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import '../styles/BearBond.css';
 
 // --- YOGI SPRITES (PNGs) ---
@@ -30,9 +30,33 @@ const CRAIG_MAP = {
 };
 
 const FRAME_COUNT = 6;
+const MAX_SPRITE_BOX = 250;
+const FALLBACK_RATIOS = {
+  yogi: 1,
+  craig: 0.62,
+};
+
+const getFittedFrameSize = (ratio) => {
+  if (ratio >= 1) {
+    return {
+      width: MAX_SPRITE_BOX,
+      height: MAX_SPRITE_BOX / ratio,
+    };
+  }
+
+  return {
+    width: MAX_SPRITE_BOX * ratio,
+    height: MAX_SPRITE_BOX,
+  };
+};
 
 export default function BearSprite({ currentAnimation, onAnimationComplete, character = 'yogi' }) {
   const [frame, setFrame] = useState(0);
+  const [frameRatio, setFrameRatio] = useState(FALLBACK_RATIOS[character] || 1);
+
+  const SPRITE_MAP = character === 'craig' ? CRAIG_MAP : YOGI_MAP;
+  const currentSpriteSrc = SPRITE_MAP[currentAnimation] || SPRITE_MAP.idle;
+  const isIdle = currentAnimation === 'idle';
 
   useEffect(() => {
     setFrame(0);
@@ -52,23 +76,49 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
     };
   }, [currentAnimation, onAnimationComplete]);
 
-  const SPRITE_MAP = character === 'craig' ? CRAIG_MAP : YOGI_MAP;
-  const currentSpriteSrc = SPRITE_MAP[currentAnimation] || SPRITE_MAP.idle;
-  const isIdle = currentAnimation === 'idle';
+  useEffect(() => {
+    const image = new Image();
+
+    image.onload = () => {
+      const frameWidth = isIdle ? image.naturalWidth : image.naturalWidth / FRAME_COUNT;
+      const frameHeight = image.naturalHeight || MAX_SPRITE_BOX;
+      setFrameRatio(frameWidth / frameHeight);
+    };
+
+    image.src = currentSpriteSrc;
+  }, [currentSpriteSrc, isIdle]);
+
+  const frameSize = useMemo(() => getFittedFrameSize(frameRatio || 1), [frameRatio]);
 
   return (
     <div className={`bear-sprite-wrapper ${character === 'craig' ? 'craig-sprite-wrapper' : ''}`}>
-      <div 
-        className="bear-sprite-animated"
+      <div
+        className="bear-frame-viewport"
         style={{
-          backgroundImage: `url(${currentSpriteSrc})`,
-          // Animated sheets are 6 frames wide. Use auto height so Craig keeps the same proportions as main1.png.
-          backgroundSize: isIdle ? 'contain' : `${FRAME_COUNT * 100}% auto`,
-          backgroundPosition: isIdle ? 'center' : `${(frame / (FRAME_COUNT - 1)) * 100}% center`,
-          backgroundRepeat: 'no-repeat',
-          imageRendering: 'pixelated'
+          width: `${frameSize.width}px`,
+          height: `${frameSize.height}px`,
         }}
-      />
+      >
+        {isIdle ? (
+          <img
+            src={currentSpriteSrc}
+            alt=""
+            className="bear-sprite-image"
+            draggable="false"
+          />
+        ) : (
+          <img
+            src={currentSpriteSrc}
+            alt=""
+            className="bear-sprite-sheet"
+            draggable="false"
+            style={{
+              height: `${frameSize.height}px`,
+              transform: `translateX(-${frame * frameSize.width}px)`,
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
