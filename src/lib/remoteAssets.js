@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { applyRemoteScenes } from '../data/scenes';
 
 const cleanId = (value) => String(value || '')
   .trim()
@@ -27,10 +28,11 @@ export const loadRemoteScenes = async () => {
 
   if (error) {
     console.warn('Could not load custom scenes:', error.message);
+    applyRemoteScenes([]);
     return [];
   }
 
-  return (data || [])
+  const scenes = (data || [])
     .map((scene) => {
       const id = cleanId(scene.id || scene.slug || scene.name);
       const image = getAssetUrl({
@@ -49,6 +51,9 @@ export const loadRemoteScenes = async () => {
       };
     })
     .filter(Boolean);
+
+  applyRemoteScenes(scenes);
+  return scenes;
 };
 
 export const loadRemoteAvatars = async () => {
