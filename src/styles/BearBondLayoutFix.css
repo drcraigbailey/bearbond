@@ -18,9 +18,9 @@
 
 .chat-fab {
   position: absolute;
-  top: 4.85rem;
   right: 1rem;
-  z-index: 34;
+  bottom: 7.35rem;
+  z-index: 44;
   width: 3.2rem;
   height: 3.2rem;
   min-width: 3.2rem;
@@ -220,6 +220,10 @@
   .bear-sprite-wrapper {
     width: 225px;
     height: 225px;
+  }
+
+  .chat-fab {
+    bottom: 6.35rem;
   }
 
   .chat-panel {
