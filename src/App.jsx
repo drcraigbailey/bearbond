@@ -172,7 +172,6 @@ export default function App() {
   const fetchProfileAndPair = async (userId, email) => {
     setLoading(true);
 
-    // 1. Get user profile (or create one)
     let { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     if (!prof) {
       const newProf = { id: userId, email: email };
@@ -181,7 +180,6 @@ export default function App() {
     }
     setProfile(prof);
 
-    // 2. Get all visible pair rows and prefer the most recently active connected one.
     const storedPairId = getStoredPairId(userId);
     const { data: pairRows, error: pairError } = await supabase
       .from('pairs')
@@ -232,6 +230,27 @@ export default function App() {
     );
   };
 
+  const handleAvatarChange = async (avatarId) => {
+    if (!session?.user?.id) return false;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ character: avatarId })
+      .eq('id', session.user.id);
+
+    if (error) {
+      console.warn('Could not change avatar:', error.message);
+      return false;
+    }
+
+    setProfile((currentProfile) => currentProfile
+      ? { ...currentProfile, character: avatarId }
+      : currentProfile
+    );
+
+    return true;
+  };
+
   const handleLogout = async () => {
     setLoading(false);
     setSession(null);
@@ -243,8 +262,7 @@ export default function App() {
   if (loading) return <div className="loading-screen">Loading BearBond...</div>;
 
   if (!session) return <AuthScreen />;
-  
-  // Intercept here if they haven't picked a character yet, or want to change it.
+
   if (!profile?.character) return (
     <CharacterSelectScreen 
       user={session.user} 
@@ -254,7 +272,7 @@ export default function App() {
       }))} 
     />
   );
-  
+
   if (!pair) return <PairingScreen user={session.user} onPaired={handlePaired} />;
 
   return (
@@ -264,6 +282,7 @@ export default function App() {
       profile={profile}
       onPairReset={handlePairReset}
       onCharacterChange={handleCharacterChange}
+      onAvatarChange={handleAvatarChange}
       onLogout={handleLogout}
     />
   );
