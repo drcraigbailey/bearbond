@@ -159,6 +159,7 @@ export default function MainBearScene({
   const [chatDraft, setChatDraft] = useState('');
   const [displayNameDraft, setDisplayNameDraft] = useState(profile.display_name || '');
   const [displayNameSaving, setDisplayNameSaving] = useState(false);
+  const [activeDisplayCharacter, setActiveDisplayCharacter] = useState(() => partnerProfile?.character || 'yogi');
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -178,8 +179,14 @@ export default function MainBearScene({
   const availableAvatars = avatars && avatars.length ? avatars : DEFAULT_AVATARS;
   const ownCharacter = profile.character || 'yogi';
   const partnerCharacter = partnerCharacterOverride || partnerProfile?.character || '';
-  const displayCharacter = partnerCharacter || ownCharacter;
+  const displayCharacter = activeDisplayCharacter || 'yogi';
   const receiverId = pair.user_one_id === user.id ? pair.user_two_id : pair.user_one_id;
+
+  useEffect(() => {
+    if (partnerProfile?.character) {
+      setActiveDisplayCharacter(partnerProfile.character);
+    }
+  }, [partnerProfile?.id, partnerProfile?.character]);
 
   useEffect(() => {
     setPartnerCharacterOverride('');
@@ -347,6 +354,7 @@ export default function MainBearScene({
     const notificationBody = `${partnerName} changed avatar to ${avatarName}.`;
 
     setPartnerCharacterOverride(avatarId);
+    setActiveDisplayCharacter(avatarId);
     setCurrentAnimation('idle');
     showToast(notificationBody);
 
