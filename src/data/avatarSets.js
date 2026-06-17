@@ -62,6 +62,7 @@ const SPRITE_FILE_NAMES = {
   sleep: ['night.png'],
   dance: ['cheeky.png'],
   celebrate: ['cane.png'],
+  chicken: ['chicken.png'],
 };
 
 const getBuiltInAsset = (avatarId, animation, legacySuffix = '') => {
@@ -89,6 +90,7 @@ const makeBuiltInSpriteSet = (avatarId, legacySuffix = '') => ({
   sleep: getBuiltInAsset(avatarId, 'sleep', legacySuffix),
   dance: getBuiltInAsset(avatarId, 'dance', legacySuffix),
   celebrate: getBuiltInAsset(avatarId, 'celebrate', legacySuffix),
+  chicken: getBuiltInAsset(avatarId, 'chicken', legacySuffix),
 });
 
 export const BUILT_IN_AVATAR_SPRITES = {
@@ -182,6 +184,7 @@ export const mergeAvatarAssets = (remoteAvatars = []) => {
       sleep: avatar.sleep_url || avatar.night_url || builtInFallback.sleep,
       dance: avatar.dance_url || avatar.cheeky_url || builtInFallback.dance,
       celebrate: avatar.celebrate_url || avatar.cane_url || builtInFallback.celebrate,
+      chicken: avatar.chicken_url || builtInFallback.chicken,
     };
   }
 
