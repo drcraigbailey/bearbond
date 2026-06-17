@@ -113,6 +113,7 @@ serve(async (req) => {
       actionName,
       eventType = 'action',
       notificationLabel,
+      eventAt,
     } = await req.json();
 
     if (!pairId || !senderId || !actionName) {
@@ -167,6 +168,7 @@ serve(async (req) => {
 
     const cleanEventType = eventType === 'scene' ? 'scene' : 'action';
     const cleanLabel = String(notificationLabel || actionName);
+    const cleanEventAt = String(eventAt || new Date().toISOString());
     const notificationBody = cleanEventType === 'scene'
       ? `${senderName} changed your scene to ${cleanLabel}! 🏞️`
       : `${senderName} sent you a ${cleanLabel}! ❤️`;
@@ -194,6 +196,7 @@ serve(async (req) => {
               actionName: String(actionName),
               eventType: cleanEventType,
               notificationLabel: cleanLabel,
+              eventAt: cleanEventAt,
             },
             android: {
               priority: 'HIGH',
