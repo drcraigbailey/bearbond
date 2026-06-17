@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import '../styles/BearBond.css';
 import '../styles/SpriteFix.css';
 
@@ -23,14 +23,29 @@ import craigCheeky from '../assets/bear/cheeky1.png';
 import craigCane from '../assets/bear/cane1.png';
 
 const YOGI_MAP = {
-  idle: yogiMain, wave: yogiWave, love: yogiKiss, hug: yogiHug, honey: yogiHoney, sleep: yogiNight, dance: yogiCheeky, celebrate: yogiCane,
+  idle: yogiMain,
+  wave: yogiWave,
+  love: yogiKiss,
+  hug: yogiHug,
+  honey: yogiHoney,
+  sleep: yogiNight,
+  dance: yogiCheeky,
+  celebrate: yogiCane,
 };
 
 const CRAIG_MAP = {
-  idle: craigMain, wave: craigWave, love: craigKiss, hug: craigHug, honey: craigHoney, sleep: craigNight, dance: craigCheeky, celebrate: craigCane,
+  idle: craigMain,
+  wave: craigWave,
+  love: craigKiss,
+  hug: craigHug,
+  honey: craigHoney,
+  sleep: craigNight,
+  dance: craigCheeky,
+  celebrate: craigCane,
 };
 
 const FRAME_COUNT = 6;
+const FRAME_DURATION_MS = 140;
 const MAX_SPRITE_BOX = 250;
 const FALLBACK_RATIOS = {
   yogi: 1,
@@ -54,28 +69,44 @@ const getFittedFrameSize = (ratio) => {
 export default function BearSprite({ currentAnimation, onAnimationComplete, character = 'yogi' }) {
   const [frame, setFrame] = useState(0);
   const [frameRatio, setFrameRatio] = useState(FALLBACK_RATIOS[character] || 1);
+  const onAnimationCompleteRef = useRef(onAnimationComplete);
 
   const SPRITE_MAP = character === 'craig' ? CRAIG_MAP : YOGI_MAP;
   const currentSpriteSrc = SPRITE_MAP[currentAnimation] || SPRITE_MAP.idle;
   const isIdle = currentAnimation === 'idle';
 
   useEffect(() => {
+    onAnimationCompleteRef.current = onAnimationComplete;
+  }, [onAnimationComplete]);
+
+  useEffect(() => {
     setFrame(0);
-    if (currentAnimation === 'idle') return;
 
-    const frameInterval = setInterval(() => {
-      setFrame((prevFrame) => (prevFrame + 1) % FRAME_COUNT);
-    }, 120);
+    if (currentAnimation === 'idle') return undefined;
 
-    const actionTimeout = setTimeout(() => {
-      if (onAnimationComplete) onAnimationComplete();
-    }, 2880);
+    let nextFrame = 0;
+
+    const frameInterval = window.setInterval(() => {
+      nextFrame += 1;
+
+      if (nextFrame >= FRAME_COUNT) {
+        window.clearInterval(frameInterval);
+        setFrame(FRAME_COUNT - 1);
+
+        window.setTimeout(() => {
+          onAnimationCompleteRef.current?.();
+        }, 120);
+
+        return;
+      }
+
+      setFrame(nextFrame);
+    }, FRAME_DURATION_MS);
 
     return () => {
-      clearInterval(frameInterval);
-      clearTimeout(actionTimeout);
+      window.clearInterval(frameInterval);
     };
-  }, [currentAnimation, onAnimationComplete]);
+  }, [currentAnimation]);
 
   useEffect(() => {
     const image = new Image();
