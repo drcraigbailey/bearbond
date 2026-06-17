@@ -96,6 +96,7 @@ export const loadRemoteAvatars = async () => {
         sleep_url: spriteUrl(avatar.sleep_url || avatar.night_url, avatar.sleep_path || avatar.night_path, 'night.png'),
         dance_url: spriteUrl(avatar.dance_url || avatar.cheeky_url, avatar.dance_path || avatar.cheeky_path, 'cheeky.png'),
         celebrate_url: spriteUrl(avatar.celebrate_url || avatar.cane_url, avatar.celebrate_path || avatar.cane_path, 'cane.png'),
+        chicken_url: spriteUrl(avatar.chicken_url, avatar.chicken_path, 'chicken.png'),
         isRemote: true,
       };
     })
