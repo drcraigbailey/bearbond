@@ -289,32 +289,53 @@ export default function App() {
   const fetchProfileAndPair = async (userId, email) => {
     setLoading(true);
 
-    let { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-    if (!prof) {
-      const newProf = { id: userId, email: email };
-      await supabase.from('profiles').insert([newProf]);
-      prof = newProf;
+    try {
+      let { data: prof, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.warn('Could not fetch profile:', profileError.message);
+      }
+
+      if (!prof) {
+        const newProf = { id: userId, email: email };
+        const { error: insertError } = await supabase.from('profiles').insert([newProf]);
+
+        if (insertError) {
+          console.warn('Could not create profile:', insertError.message);
+        }
+
+        prof = newProf;
+      }
+
+      setProfile(prof);
+
+      const storedPairId = getStoredPairId(userId);
+      const { data: pairRows, error: pairError } = await supabase
+        .from('pairs')
+        .select('*')
+        .or(`user_one_id.eq.${userId},user_two_id.eq.${userId}`);
+
+      if (pairError) {
+        console.warn('Could not fetch pairs:', pairError.message);
+      }
+
+      const selectedPair = chooseBestPair(pairRows || [], userId, storedPairId);
+
+      if (selectedPair?.id) {
+        saveStoredPairId(userId, selectedPair.id);
+      }
+
+      setPair(selectedPair);
+    } catch (error) {
+      console.warn('Could not load BearBond startup data:', error);
+      setPair(null);
+    } finally {
+      setLoading(false);
     }
-    setProfile(prof);
-
-    const storedPairId = getStoredPairId(userId);
-    const { data: pairRows, error: pairError } = await supabase
-      .from('pairs')
-      .select('*')
-      .or(`user_one_id.eq.${userId},user_two_id.eq.${userId}`);
-
-    if (pairError) {
-      console.warn('Could not fetch pairs:', pairError.message);
-    }
-
-    const selectedPair = chooseBestPair(pairRows || [], userId, storedPairId);
-
-    if (selectedPair?.id) {
-      saveStoredPairId(userId, selectedPair.id);
-    }
-
-    setPair(selectedPair);
-    setLoading(false);
   };
 
   const handlePaired = (newPair) => {

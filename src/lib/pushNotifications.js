@@ -20,7 +20,14 @@ const ensureNotificationChannel = async () => {
 };
 
 const extractPushData = (payload) => {
-  return payload?.notification?.data || payload?.data || payload || null;
+  return (
+    payload?.notification?.extra ||
+    payload?.notification?.data ||
+    payload?.data ||
+    payload?.extra ||
+    payload ||
+    null
+  );
 };
 
 const dispatchBearBondPushEvent = (payload) => {
@@ -45,6 +52,8 @@ const dispatchBearBondPushEvent = (payload) => {
 
 const showForegroundPushNotification = async (notification) => {
   try {
+    const notificationData = extractPushData(notification) || {};
+
     await LocalNotifications.createChannel({
       id: PUSH_CHANNEL_ID,
       name: 'BearBond actions',
@@ -64,6 +73,7 @@ const showForegroundPushNotification = async (notification) => {
           body: notification?.body || 'Your partner sent you something! ❤️',
           channelId: PUSH_CHANNEL_ID,
           autoCancel: true,
+          extra: notificationData,
         },
       ],
     });
@@ -103,6 +113,12 @@ export const registerPushNotifications = async (userId) => {
     await ensureNotificationChannel();
 
     await PushNotifications.removeAllListeners();
+    await LocalNotifications.removeAllListeners();
+
+    await LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+      console.log('BearBond local notification tapped:', notificationAction);
+      dispatchBearBondPushEvent(notificationAction);
+    });
 
     await PushNotifications.addListener('registration', async (token) => {
       const saved = await savePushToken({ userId, token: token.value });

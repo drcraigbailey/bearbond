@@ -569,6 +569,7 @@ export default function MainBearScene({
         if (String(pending.senderId) === String(user.id)) return;
 
         if (pending.eventType === 'chat') {
+          setChatOpen(true);
           await loadChatMessages({ quiet: true });
           window.localStorage.removeItem(PENDING_PUSH_EVENT_KEY);
           return;
@@ -599,6 +600,7 @@ export default function MainBearScene({
       if (String(detail.senderId) === String(user.id)) return;
 
       if (detail.eventType === 'chat') {
+        setChatOpen(true);
         loadChatMessages({ quiet: true });
         return;
       }
