@@ -209,7 +209,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     setConfirmDialog({
       title: 'Change Character?',
       message: 'This keeps your current pairing and sends you back to the character picker.',
-      confirmLabel: 'Choose Character',
+      confirmLabel: 'Choose',
       onConfirm: performChangeCharacter,
     });
   };
