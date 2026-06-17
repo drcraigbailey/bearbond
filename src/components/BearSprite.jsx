@@ -27,12 +27,12 @@ const getFittedFrameSize = (ratio) => {
   };
 };
 
-export default function BearSprite({ currentAnimation, onAnimationComplete, character = 'yogi' }) {
+export default function BearSprite({ currentAnimation, onAnimationComplete, character = 'yogi', avatarSprites }) {
   const [frame, setFrame] = useState(0);
   const [frameRatio, setFrameRatio] = useState(FALLBACK_RATIOS[character] || 1);
   const onAnimationCompleteRef = useRef(onAnimationComplete);
 
-  const currentSpriteSrc = getSpriteAsset(character, currentAnimation);
+  const currentSpriteSrc = getSpriteAsset(character, currentAnimation, avatarSprites);
   const isIdle = currentAnimation === 'idle';
 
   useEffect(() => {
