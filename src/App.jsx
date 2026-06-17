@@ -74,7 +74,9 @@ export default function App() {
 
   const handlePairReset = async () => {
     setPair(null);
+  };
 
+  const handleCharacterChange = async () => {
     if (!session?.user?.id) return;
 
     await supabase
@@ -92,7 +94,7 @@ export default function App() {
 
   if (!session) return <AuthScreen />;
   
-  // Intercept here if they haven't picked a character yet!
+  // Intercept here if they haven't picked a character yet, or want to change it.
   if (!profile?.character) return (
     <CharacterSelectScreen 
       user={session.user} 
@@ -108,6 +110,7 @@ export default function App() {
       pair={pair}
       profile={profile}
       onPairReset={handlePairReset}
+      onCharacterChange={handleCharacterChange}
     />
   );
 }
