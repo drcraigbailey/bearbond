@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import PixelAlert from './PixelAlert';
 
 // Import the Yogi resting image to use as the logo
-import logoImg from '../assets/bear/main.png'; 
+import logoImg from '../assets/bear/yogi/main.png';
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
