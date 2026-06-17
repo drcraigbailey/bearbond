@@ -409,7 +409,8 @@ export default function App() {
     <MainBearScene
       user={session.user}
       pair={pair}
-      profile={pairedDisplayProfile}
+      profile={profile}
+      partnerProfile={partnerProfile}
       scenes={scenes}
       avatars={avatars}
       avatarSprites={avatarSprites}

@@ -133,6 +133,7 @@ export default function MainBearScene({
   user,
   pair,
   profile,
+  partnerProfile,
   scenes = DEFAULT_SCENES,
   avatars = DEFAULT_AVATARS,
   avatarSprites,
@@ -169,7 +170,9 @@ export default function MainBearScene({
 
   const availableScenes = scenes && Object.keys(scenes).length ? scenes : DEFAULT_SCENES;
   const availableAvatars = avatars && avatars.length ? avatars : DEFAULT_AVATARS;
-  const displayCharacter = profile.character || 'yogi';
+  const ownCharacter = profile.character || 'yogi';
+  const partnerCharacter = partnerProfile?.character || '';
+  const displayCharacter = partnerCharacter || ownCharacter;
   const receiverId = pair.user_one_id === user.id ? pair.user_two_id : pair.user_one_id;
 
   const showToast = (msg) => {
@@ -177,7 +180,9 @@ export default function MainBearScene({
     setTimeout(() => setToastMessage(''), 5000);
   };
 
-  const getPartnerName = () => getAvatarName(displayCharacter, availableAvatars);
+  const getPartnerName = () => partnerCharacter
+    ? getAvatarName(partnerCharacter, availableAvatars)
+    : 'Your partner';
 
   const startMusic = async () => {
     const music = musicRef.current;
@@ -702,7 +707,7 @@ export default function MainBearScene({
   };
 
   const handleAvatarSelect = async (avatarId) => {
-    if (avatarId === displayCharacter) return;
+    if (avatarId === ownCharacter) return;
 
     if (!onAvatarChange) {
       showToast('Avatar picker is not available.');
@@ -717,7 +722,7 @@ export default function MainBearScene({
     }
 
     setCurrentAnimation('idle');
-    showToast(`Avatar changed to ${getAvatarName(avatarId, availableAvatars)}.`);
+    showToast(`Your avatar changed to ${getAvatarName(avatarId, availableAvatars)}.`);
   };
 
   const handleRemainLoggedInChange = (e) => {
