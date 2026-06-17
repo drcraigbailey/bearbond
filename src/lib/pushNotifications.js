@@ -4,6 +4,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { supabase } from './supabaseClient';
 
 const PUSH_CHANNEL_ID = 'bearbond-actions';
+const PENDING_PUSH_EVENT_KEY = 'bearbond.pendingPushEvent';
 
 const ensureNotificationChannel = async () => {
   await PushNotifications.createChannel({
@@ -16,6 +17,30 @@ const ensureNotificationChannel = async () => {
     vibration: true,
     lights: true,
   });
+};
+
+const extractPushData = (payload) => {
+  return payload?.notification?.data || payload?.data || payload || null;
+};
+
+const dispatchBearBondPushEvent = (payload) => {
+  if (typeof window === 'undefined') return;
+
+  const data = extractPushData(payload);
+  if (!data?.pairId || !data?.actionName) return;
+
+  const eventDetail = {
+    ...data,
+    receivedAt: new Date().toISOString(),
+  };
+
+  try {
+    window.localStorage.setItem(PENDING_PUSH_EVENT_KEY, JSON.stringify(eventDetail));
+  } catch (_error) {
+    // Ignore storage failures; the live event below can still work.
+  }
+
+  window.dispatchEvent(new CustomEvent('bearbond-push-event', { detail: eventDetail }));
 };
 
 const showForegroundPushNotification = async (notification) => {
@@ -89,11 +114,13 @@ export const registerPushNotifications = async (userId) => {
     });
 
     await PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+      dispatchBearBondPushEvent(notification);
       await showForegroundPushNotification(notification);
     });
 
     await PushNotifications.addListener('pushNotificationActionPerformed', (notificationAction) => {
       console.log('BearBond push notification tapped:', notificationAction);
+      dispatchBearBondPushEvent(notificationAction);
     });
 
     let permissionStatus = await PushNotifications.checkPermissions();
