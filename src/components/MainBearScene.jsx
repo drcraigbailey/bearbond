@@ -11,6 +11,24 @@ import logoImg from '../assets/bear/yogi/main.png';
 const BEARBOND_NOTIFICATION_CHANNEL = 'bearbond-actions';
 const PENDING_PUSH_EVENT_KEY = 'bearbond.pendingPushEvent';
 const BACKGROUND_MUSIC_SRC = '/music/Summit_Jig.mp3';
+const MUSIC_ENABLED_STORAGE_KEY = 'bearbond.musicEnabled';
+const SOUNDS_ENABLED_STORAGE_KEY = 'bearbond.soundsEnabled';
+const ACTION_SOUND_SOURCES = {
+  chicken: '/sounds/fuckoff.wav',
+};
+
+const getStoredBooleanPreference = (key, fallback = false) => {
+  if (typeof window === 'undefined') return fallback;
+
+  const storedValue = window.localStorage.getItem(key);
+  if (storedValue === null) return fallback;
+  return storedValue === 'true';
+};
+
+const saveBooleanPreference = (key, value) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(key, value ? 'true' : 'false');
+};
 
 const getSceneStorageKey = (pairId, userId) => `bearbond.scene.${pairId}.${userId}`;
 
@@ -135,12 +153,15 @@ export default function MainBearScene({
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
-  const [musicEnabled, setMusicEnabled] = useState(false);
+  const [musicEnabled, setMusicEnabled] = useState(() => getStoredBooleanPreference(MUSIC_ENABLED_STORAGE_KEY, false));
+  const [soundsEnabled, setSoundsEnabled] = useState(() => getStoredBooleanPreference(SOUNDS_ENABLED_STORAGE_KEY, true));
   const commandPollRunningRef = useRef(false);
   const commandTableWarningShownRef = useRef(false);
   const processedCommandIdsRef = useRef(new Set());
   const chatEndRef = useRef(null);
   const musicRef = useRef(null);
+  const actionSoundRef = useRef(null);
+  const soundsEnabledRef = useRef(soundsEnabled);
 
   const availableScenes = scenes && Object.keys(scenes).length ? scenes : DEFAULT_SCENES;
   const availableAvatars = avatars && avatars.length ? avatars : DEFAULT_AVATARS;
@@ -172,6 +193,7 @@ export default function MainBearScene({
   const handleMusicToggle = async () => {
     const nextEnabled = !musicEnabled;
     setMusicEnabled(nextEnabled);
+    saveBooleanPreference(MUSIC_ENABLED_STORAGE_KEY, nextEnabled);
 
     if (!nextEnabled) {
       musicRef.current?.pause();
@@ -182,6 +204,42 @@ export default function MainBearScene({
     const started = await startMusic();
     showToast(started ? 'Music on.' : 'Tap again to start music.');
   };
+
+  const handleSoundsToggle = () => {
+    const nextEnabled = !soundsEnabled;
+    setSoundsEnabled(nextEnabled);
+    soundsEnabledRef.current = nextEnabled;
+    saveBooleanPreference(SOUNDS_ENABLED_STORAGE_KEY, nextEnabled);
+
+    if (!nextEnabled) {
+      actionSoundRef.current?.pause();
+      showToast('Sounds off.');
+      return;
+    }
+
+    showToast('Sounds on.');
+  };
+
+  const playActionSound = async (actionName) => {
+    if (!soundsEnabledRef.current || typeof Audio === 'undefined') return;
+
+    const soundSrc = ACTION_SOUND_SOURCES[actionName];
+    if (!soundSrc) return;
+
+    try {
+      actionSoundRef.current?.pause();
+      const sound = new Audio(soundSrc);
+      actionSoundRef.current = sound;
+      sound.volume = 0.85;
+      await sound.play();
+    } catch (error) {
+      console.warn(`Could not play ${actionName} sound:`, error);
+    }
+  };
+
+  useEffect(() => {
+    soundsEnabledRef.current = soundsEnabled;
+  }, [soundsEnabled]);
 
   useEffect(() => {
     const music = musicRef.current;
@@ -208,6 +266,7 @@ export default function MainBearScene({
   const handleIncomingAction = async (actionName, { notify = false } = {}) => {
     const partnerName = getPartnerName();
     setCurrentAnimation(actionName);
+    playActionSound(actionName);
     showToast(`${partnerName} sent a ${actionName}!`);
 
     if (!notify) return;
@@ -569,6 +628,7 @@ export default function MainBearScene({
 
   const handleSendAction = async (actionId) => {
     setCurrentAnimation(actionId);
+    playActionSound(actionId);
     const now = new Date().toISOString();
 
     const commandSent = await sendDirectCommand({ commandType: 'action', commandName: actionId });
@@ -758,6 +818,14 @@ export default function MainBearScene({
             {musicEnabled ? '🔊' : '🔇'}
           </button>
           <button
+            onClick={handleSoundsToggle}
+            className="icon-btn"
+            aria-label={soundsEnabled ? 'Turn action sounds off' : 'Turn action sounds on'}
+            title={soundsEnabled ? 'Sounds off' : 'Sounds on'}
+          >
+            {soundsEnabled ? '🔔' : '🔕'}
+          </button>
+          <button
             onClick={() => setSettingsOpen((open) => !open)}
             className="icon-btn"
             aria-label="Open settings"
@@ -805,6 +873,32 @@ export default function MainBearScene({
             <span className="setting-toggle-copy">
               <span className="setting-toggle-label">Remain logged in</span>
               <span className="setting-toggle-hint">Keep BearBond open after closing the app.</span>
+            </span>
+          </label>
+
+          <label className="setting-toggle-row">
+            <input
+              type="checkbox"
+              checked={musicEnabled}
+              onChange={handleMusicToggle}
+              className="setting-checkbox"
+            />
+            <span className="setting-toggle-copy">
+              <span className="setting-toggle-label">Music</span>
+              <span className="setting-toggle-hint">Loop the 8-bit background track.</span>
+            </span>
+          </label>
+
+          <label className="setting-toggle-row">
+            <input
+              type="checkbox"
+              checked={soundsEnabled}
+              onChange={handleSoundsToggle}
+              className="setting-checkbox"
+            />
+            <span className="setting-toggle-copy">
+              <span className="setting-toggle-label">Action sounds</span>
+              <span className="setting-toggle-hint">Play sound effects when actions arrive or are sent.</span>
             </span>
           </label>
 
