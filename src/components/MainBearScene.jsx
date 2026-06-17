@@ -438,6 +438,14 @@ export default function MainBearScene({
     }
 
     setChatDraft('');
+
+    await sendClosedAppPush({
+      actionName: 'chat',
+      eventType: 'chat',
+      notificationLabel: 'message',
+      eventAt: new Date().toISOString(),
+    });
+
     await loadChatMessages({ quiet: true });
   };
 
@@ -493,6 +501,12 @@ export default function MainBearScene({
         if (String(pending.pairId) !== String(pair.id)) return;
         if (String(pending.senderId) === String(user.id)) return;
 
+        if (pending.eventType === 'chat') {
+          await loadChatMessages({ quiet: true });
+          window.localStorage.removeItem(PENDING_PUSH_EVENT_KEY);
+          return;
+        }
+
         await applyIncomingCommand({
           id: `push-${pending.eventAt || pending.receivedAt || Date.now()}`,
           pair_id: pending.pairId,
@@ -516,6 +530,11 @@ export default function MainBearScene({
       const detail = event.detail || {};
       if (String(detail.pairId) !== String(pair.id)) return;
       if (String(detail.senderId) === String(user.id)) return;
+
+      if (detail.eventType === 'chat') {
+        loadChatMessages({ quiet: true });
+        return;
+      }
 
       applyIncomingCommand({
         id: `push-${detail.eventAt || detail.receivedAt || Date.now()}`,

@@ -166,12 +166,18 @@ serve(async (req) => {
       ? senderProfile.character.charAt(0).toUpperCase() + senderProfile.character.slice(1)
       : 'Your partner';
 
-    const cleanEventType = eventType === 'scene' ? 'scene' : 'action';
+    const cleanEventType = eventType === 'scene'
+      ? 'scene'
+      : eventType === 'chat'
+        ? 'chat'
+        : 'action';
     const cleanLabel = String(notificationLabel || actionName);
     const cleanEventAt = String(eventAt || new Date().toISOString());
     const notificationBody = cleanEventType === 'scene'
       ? `${senderName} changed your scene to ${cleanLabel}! 🏞️`
-      : `${senderName} sent you a ${cleanLabel}! ❤️`;
+      : cleanEventType === 'chat'
+        ? `${senderName} sent you a message! 💬`
+        : `${senderName} sent you a ${cleanLabel}! ❤️`;
 
     const accessToken = await getFirebaseAccessToken();
 
