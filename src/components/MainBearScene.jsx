@@ -54,6 +54,53 @@ const sendLocalActionNotification = async ({ partnerName, actionName, notificati
   });
 };
 
+const trimPushError = (message) => {
+  if (!message) return 'Function error';
+  return String(message).slice(0, 180);
+};
+
+const describeFunctionPayload = (payload) => {
+  if (!payload) return '';
+
+  if (payload.details?.error?.message) {
+    return `${payload.error || 'Firebase error'}: ${payload.details.error.message}`;
+  }
+
+  if (payload.details?.message) {
+    return `${payload.error || 'Firebase error'}: ${payload.details.message}`;
+  }
+
+  if (payload.error) return payload.error;
+  if (payload.reason) return payload.reason;
+  if (payload.message) return payload.message;
+
+  return '';
+};
+
+const getEdgeFunctionErrorMessage = async (error) => {
+  const response = error?.context || error?.response;
+
+  try {
+    if (response?.clone && typeof response.clone === 'function') {
+      const text = await response.clone().text();
+
+      if (text) {
+        try {
+          const payload = JSON.parse(text);
+          const payloadMessage = describeFunctionPayload(payload);
+          if (payloadMessage) return trimPushError(payloadMessage);
+        } catch (_jsonError) {
+          return trimPushError(text);
+        }
+      }
+    }
+  } catch (_readError) {
+    // Fall back to the generic error below.
+  }
+
+  return trimPushError(error?.message || 'Function error');
+};
+
 export default function MainBearScene({ user, pair, profile, onPairReset, onCharacterChange, onLogout }) {
   const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
   const [scenePickerValue, setScenePickerValue] = useState('');
@@ -154,7 +201,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 4000);
+    setTimeout(() => setToastMessage(''), 5000);
   };
 
   const sendClosedAppPush = async ({ actionName, eventType = 'action', notificationLabel }) => {
@@ -170,8 +217,9 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       });
 
       if (error) {
-        console.warn('Could not send push notification:', error.message || error);
-        showToast(`Push failed: ${error.message || 'Function error'}`);
+        const detailedMessage = await getEdgeFunctionErrorMessage(error);
+        console.warn('Could not send push notification:', detailedMessage, error);
+        showToast(`Push failed: ${detailedMessage}`);
         return false;
       }
 
@@ -182,15 +230,17 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       }
 
       if (data?.error) {
+        const dataMessage = describeFunctionPayload(data) || data.error;
         console.warn('Push notification error:', data);
-        showToast(`Push failed: ${data.error}`);
+        showToast(`Push failed: ${trimPushError(dataMessage)}`);
         return false;
       }
 
       return true;
     } catch (error) {
-      console.warn('Could not send push notification:', error);
-      showToast('Push failed before sending.');
+      const detailedMessage = await getEdgeFunctionErrorMessage(error);
+      console.warn('Could not send push notification:', detailedMessage, error);
+      showToast(`Push failed: ${detailedMessage}`);
       return false;
     }
   };
