@@ -36,7 +36,7 @@ const setupLocalNotifications = async () => {
   }
 };
 
-const sendLocalActionNotification = async ({ partnerName, actionName }) => {
+const sendLocalActionNotification = async ({ partnerName, actionName, notificationBody }) => {
   const canNotify = await setupLocalNotifications();
 
   if (!canNotify) return;
@@ -45,7 +45,7 @@ const sendLocalActionNotification = async ({ partnerName, actionName }) => {
     notifications: [
       {
         title: 'BearBond',
-        body: `${partnerName} just sent you a ${actionName}! ❤️`,
+        body: notificationBody || `${partnerName} just sent you a ${actionName}! ❤️`,
         id: Math.floor(Date.now() % 2147483647),
         channelId: BEARBOND_NOTIFICATION_CHANNEL,
         autoCancel: true,
@@ -105,8 +105,20 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
           const nextSceneData = SCENES[nextScene];
 
           if (nextSceneData) {
+            const sceneNotificationBody = `${partnerName} changed your scene to ${nextSceneData.name}! 🏞️`;
+
             setActiveScene(nextScene);
-            showToast(`${partnerName} changed your scene to ${nextSceneData.name}!`);
+            showToast(sceneNotificationBody);
+
+            try {
+              await sendLocalActionNotification({
+                partnerName,
+                actionName: nextSceneData.name,
+                notificationBody: sceneNotificationBody,
+              });
+            } catch (error) {
+              console.log('Could not schedule local scene notification.', error);
+            }
           }
 
           return;
@@ -145,15 +157,21 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     setTimeout(() => setToastMessage(''), 4000);
   };
 
-  const sendClosedAppPush = async (actionId) => {
+  const sendClosedAppPush = async ({ actionName, eventType = 'action', notificationLabel }) => {
     try {
-      await supabase.functions.invoke('send-action-push', {
+      const { error } = await supabase.functions.invoke('send-action-push', {
         body: {
           pairId: pair.id,
           senderId: user.id,
-          actionName: actionId,
+          actionName,
+          eventType,
+          notificationLabel,
         },
       });
+
+      if (error) {
+        console.warn('Could not send push notification:', error.message || error);
+      }
     } catch (error) {
       console.warn('Could not send push notification:', error);
     }
@@ -177,7 +195,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       last_action_at: new Date().toISOString()
     }).eq('id', pair.id);
 
-    sendClosedAppPush(actionId);
+    await sendClosedAppPush({ actionName: actionId, eventType: 'action' });
   };
 
   const handleChangeScene = async (e) => {
@@ -200,7 +218,15 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       return;
     }
 
-    showToast(`Scene sent to partner: ${SCENES[newScene]?.name || 'Scene'}`);
+    const sceneName = SCENES[newScene]?.name || 'Scene';
+
+    await sendClosedAppPush({
+      actionName: newScene,
+      eventType: 'scene',
+      notificationLabel: sceneName,
+    });
+
+    showToast(`Scene sent to partner: ${sceneName}`);
   };
 
   const handleRemainLoggedInChange = (e) => {
