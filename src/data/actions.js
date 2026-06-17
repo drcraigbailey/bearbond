@@ -5,5 +5,6 @@ export const ACTIONS = [
   { id: 'dance', label: 'Dance', icon: '🍑' }, 
   { id: 'sleep', label: 'Sleep', icon: '💤' },
   { id: 'honey', label: 'Honey', icon: '🍯' },
+  { id: 'chicken', label: 'Chicken', icon: '🐔' },
   { id: 'celebrate', label: 'Fancy', icon: '🎩' }, 
 ];
