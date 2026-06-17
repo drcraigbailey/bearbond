@@ -228,16 +228,22 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       last_action_at: null,
     };
 
-    const { error } = pair.user_one_id === user.id
-      ? await supabase.from('pairs').delete().eq('id', pair.id)
-      : await supabase.from('pairs').update(resetPayload).eq('id', pair.id);
+    const { error, data: updatedPair } = pair.user_one_id === user.id
+      ? await supabase.from('pairs').delete().eq('id', pair.id).select().maybeSingle()
+      : await supabase.from('pairs').update(resetPayload).eq('id', pair.id).select().maybeSingle();
 
     if (error) {
       showToast(`Could not re-pair: ${error.message}`);
       return;
     }
 
-    if (onPairReset) onPairReset();
+    if (pair.user_one_id === user.id || !updatedPair) {
+      if (onPairReset) onPairReset();
+      return;
+    }
+
+    setIsPartnerConnected(!!updatedPair.user_two_id);
+    showToast('You left this pair. Your partner can wait for a new connection.');
   };
 
   const handleRepairClick = () => {
