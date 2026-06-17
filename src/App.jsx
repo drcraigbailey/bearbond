@@ -98,7 +98,10 @@ export default function App() {
   if (!profile?.character) return (
     <CharacterSelectScreen 
       user={session.user} 
-      onComplete={(char) => setProfile({ ...profile, character: char })} 
+      onComplete={(char) => setProfile((currentProfile) => ({
+        ...(currentProfile || { id: session.user.id, email: session.user.email }),
+        character: char,
+      }))} 
     />
   );
   
