@@ -9,6 +9,41 @@ import { registerPushNotifications } from './lib/pushNotifications';
 import './styles/BearBond.css';
 import './styles/BearBondLayoutFix.css';
 
+const getStoredPairKey = (userId) => `bearbond.pair.${userId}`;
+
+const getStoredPairId = (userId) => {
+  if (typeof window === 'undefined' || !userId) return null;
+  return window.localStorage.getItem(getStoredPairKey(userId));
+};
+
+const saveStoredPairId = (userId, pairId) => {
+  if (typeof window === 'undefined' || !userId || !pairId) return;
+  window.localStorage.setItem(getStoredPairKey(userId), pairId);
+};
+
+const clearStoredPairId = (userId) => {
+  if (typeof window === 'undefined' || !userId) return;
+  window.localStorage.removeItem(getStoredPairKey(userId));
+};
+
+const chooseBestPair = (pairs, userId, storedPairId) => {
+  if (!Array.isArray(pairs) || pairs.length === 0) return null;
+
+  const usablePairs = pairs.filter((item) =>
+    item && (item.user_one_id === userId || item.user_two_id === userId)
+  );
+
+  if (usablePairs.length === 0) return null;
+
+  const storedPair = usablePairs.find((item) => item.id === storedPairId);
+  if (storedPair) return storedPair;
+
+  const connectedPair = usablePairs.find((item) => item.user_one_id && item.user_two_id);
+  if (connectedPair) return connectedPair;
+
+  return usablePairs[0];
+};
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -53,6 +88,8 @@ export default function App() {
   }, [session?.user?.id, profile?.id]);
 
   const fetchProfileAndPair = async (userId, email) => {
+    setLoading(true);
+
     // 1. Get user profile (or create one)
     let { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     if (!prof) {
@@ -62,18 +99,41 @@ export default function App() {
     }
     setProfile(prof);
 
-    // 2. Get existing pair
-    const { data: pairData } = await supabase
+    // 2. Get all visible pair rows and keep the best existing connection.
+    // This avoids being thrown back to pairing if older pair rows exist.
+    const storedPairId = getStoredPairId(userId);
+    const { data: pairRows, error: pairError } = await supabase
       .from('pairs')
       .select('*')
-      .or(`user_one_id.eq.${userId},user_two_id.eq.${userId}`)
-      .maybeSingle();
-    
-    setPair(pairData);
+      .or(`user_one_id.eq.${userId},user_two_id.eq.${userId}`);
+
+    if (pairError) {
+      console.warn('Could not fetch pairs:', pairError.message);
+    }
+
+    const selectedPair = chooseBestPair(pairRows || [], userId, storedPairId);
+
+    if (selectedPair?.id) {
+      saveStoredPairId(userId, selectedPair.id);
+    }
+
+    setPair(selectedPair);
     setLoading(false);
   };
 
+  const handlePaired = (newPair) => {
+    if (session?.user?.id && newPair?.id) {
+      saveStoredPairId(session.user.id, newPair.id);
+    }
+
+    setPair(newPair);
+  };
+
   const handlePairReset = async () => {
+    if (session?.user?.id) {
+      clearStoredPairId(session.user.id);
+    }
+
     setPair(null);
   };
 
@@ -114,7 +174,7 @@ export default function App() {
     />
   );
   
-  if (!pair) return <PairingScreen user={session.user} onPaired={setPair} />;
+  if (!pair) return <PairingScreen user={session.user} onPaired={handlePaired} />;
 
   return (
     <MainBearScene
