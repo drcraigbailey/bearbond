@@ -178,7 +178,7 @@ export default function MainBearScene({
   const availableAvatars = avatars && avatars.length ? avatars : DEFAULT_AVATARS;
   const ownCharacter = profile.character || 'yogi';
   const partnerCharacter = partnerCharacterOverride || partnerProfile?.character || '';
-  const displayCharacter = partnerCharacter || ownCharacter;
+  const displayCharacter = ownCharacter;
   const receiverId = pair.user_one_id === user.id ? pair.user_two_id : pair.user_one_id;
 
   useEffect(() => {
