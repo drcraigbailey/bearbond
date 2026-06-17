@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 const getAdminEmails = () => {
-  return (import.meta.env.VITE_ADMIN_EMAILS || '')
+  return [
+    import.meta.env.VITE_ADMIN_EMAILS,
+    import.meta.env.VITE_ADMIN_EMAIL,
+  ]
+    .filter(Boolean)
+    .join(',')
     .split(',')
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
@@ -100,7 +105,7 @@ export default function AdminPanel({ user, profile, onClose }) {
       return;
     }
 
-    setMessage('Profile deleted.');
+    setMessage('Registered user deleted from BearBond.');
     await loadAdminData();
   };
 
@@ -168,14 +173,14 @@ export default function AdminPanel({ user, profile, onClose }) {
     <div className="admin-overlay" role="dialog" aria-modal="true" aria-label="Admin panel">
       <div className="admin-panel">
         <div className="admin-panel-header">
-          <h2 className="settings-title">Admin Panel</h2>
+          <h2 className="settings-title">Registered Users</h2>
           <button onClick={onClose} className="admin-close-btn" aria-label="Close admin panel">✕</button>
         </div>
 
         {!isAdmin ? (
           <div className="admin-denied-card">
             <p>Admin access is locked for this account.</p>
-            <p className="admin-help-text">Add your email to VITE_ADMIN_EMAILS or set your profile role to admin.</p>
+            <p className="admin-help-text">Add your email to VITE_ADMIN_EMAILS, VITE_ADMIN_EMAIL, or set your profile role to admin.</p>
           </div>
         ) : (
           <>
