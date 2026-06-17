@@ -15,6 +15,10 @@ const MUSIC_ENABLED_STORAGE_KEY = 'bearbond.musicEnabled';
 const SOUNDS_ENABLED_STORAGE_KEY = 'bearbond.soundsEnabled';
 const ACTION_SOUND_SOURCES = {
   chicken: '/sounds/fuckoff.wav',
+  kiss: '/sounds/kiss.wav',
+  love: '/sounds/kiss.wav',
+  night: '/sounds/night.wav',
+  sleep: '/sounds/night.wav',
 };
 
 const getStoredBooleanPreference = (key, fallback = false) => {
