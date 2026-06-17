@@ -1,37 +1,90 @@
-const bearAssets = import.meta.glob('../assets/bear/*.png', {
+const bearAssets = import.meta.glob(['../assets/bear/*.png', '../assets/bear/**/*.png'], {
   eager: true,
   import: 'default',
 });
 
-const getAssetByFileName = (fileName) => {
-  const match = Object.entries(bearAssets).find(([path]) => path.endsWith(`/${fileName}`));
+const normalisePath = (path) => path.replace(/\\/g, '/').toLowerCase();
+
+const getAssetFromFolder = (avatarId, fileName) => {
+  const expectedEnding = `/bear/${avatarId}/${fileName}`.toLowerCase();
+  const match = Object.entries(bearAssets).find(([path]) => normalisePath(path).endsWith(expectedEnding));
   return match?.[1] || null;
 };
 
-const getFirstAsset = (...fileNames) => {
+const getAssetFromBearRoot = (fileName) => {
+  const expectedEnding = `/bear/${fileName}`.toLowerCase();
+  const match = Object.entries(bearAssets).find(([path]) => normalisePath(path).endsWith(expectedEnding));
+  return match?.[1] || null;
+};
+
+const getFirstAssetFromFolder = (avatarId, fileNames = []) => {
   for (const fileName of fileNames) {
-    const asset = getAssetByFileName(fileName);
+    const asset = getAssetFromFolder(avatarId, fileName);
     if (asset) return asset;
   }
 
-  return getAssetByFileName('main.png');
+  return null;
 };
 
-const makeBuiltInSpriteSet = (suffix = '') => ({
-  idle: getFirstAsset(`main${suffix}.png`, 'main.png'),
-  wave: getFirstAsset(`wave${suffix}.png`, `Wave${suffix}.png`, 'Wave.png', 'wave.png', 'main.png'),
-  love: getFirstAsset(`kiss${suffix}.png`, 'kiss.png', 'main.png'),
-  hug: getFirstAsset(`hug${suffix}.png`, 'hug.png', 'main.png'),
-  honey: getFirstAsset(`honey${suffix}.png`, 'honey.png', 'main.png'),
-  sleep: getFirstAsset(`night${suffix}.png`, 'night.png', 'main.png'),
-  dance: getFirstAsset(`cheeky${suffix}.png`, 'cheeky.png', 'main.png'),
-  celebrate: getFirstAsset(`cane${suffix}.png`, 'cane.png', 'main.png'),
+const getFirstAssetFromBearRoot = (fileNames = []) => {
+  for (const fileName of fileNames) {
+    const asset = getAssetFromBearRoot(fileName);
+    if (asset) return asset;
+  }
+
+  return null;
+};
+
+const addSuffixBeforeExtension = (fileName, suffix = '') => {
+  if (!suffix) return fileName;
+  return fileName.replace(/(\.[^.]+)$/, `${suffix}$1`);
+};
+
+const withLegacySuffix = (fileNames = [], suffix = '') => fileNames.map((fileName) => addSuffixBeforeExtension(fileName, suffix));
+
+const SPRITE_FILE_NAMES = {
+  idle: ['main.png'],
+  wave: ['wave.png', 'Wave.png'],
+  hello: ['hello.png', 'wave.png', 'Wave.png'],
+  love: ['kiss.png'],
+  hug: ['hug.png'],
+  honey: ['honey.png'],
+  sleep: ['night.png'],
+  dance: ['cheeky.png'],
+  celebrate: ['cane.png'],
+};
+
+const getBuiltInAsset = (avatarId, animation, legacySuffix = '') => {
+  const folderFileNames = SPRITE_FILE_NAMES[animation] || SPRITE_FILE_NAMES.idle;
+  const legacyFileNames = [
+    ...withLegacySuffix(folderFileNames, legacySuffix),
+    ...folderFileNames,
+  ];
+
+  return (
+    getFirstAssetFromFolder(avatarId, folderFileNames) ||
+    getFirstAssetFromBearRoot(legacyFileNames) ||
+    getFirstAssetFromFolder('yogi', SPRITE_FILE_NAMES.idle) ||
+    getFirstAssetFromBearRoot(SPRITE_FILE_NAMES.idle)
+  );
+};
+
+const makeBuiltInSpriteSet = (avatarId, legacySuffix = '') => ({
+  idle: getBuiltInAsset(avatarId, 'idle', legacySuffix),
+  wave: getBuiltInAsset(avatarId, 'wave', legacySuffix),
+  hello: getBuiltInAsset(avatarId, 'hello', legacySuffix),
+  love: getBuiltInAsset(avatarId, 'love', legacySuffix),
+  hug: getBuiltInAsset(avatarId, 'hug', legacySuffix),
+  honey: getBuiltInAsset(avatarId, 'honey', legacySuffix),
+  sleep: getBuiltInAsset(avatarId, 'sleep', legacySuffix),
+  dance: getBuiltInAsset(avatarId, 'dance', legacySuffix),
+  celebrate: getBuiltInAsset(avatarId, 'celebrate', legacySuffix),
 });
 
 export const BUILT_IN_AVATAR_SPRITES = {
-  yogi: makeBuiltInSpriteSet(''),
-  craig: makeBuiltInSpriteSet('1'),
-  alex: makeBuiltInSpriteSet('3'),
+  yogi: makeBuiltInSpriteSet('yogi'),
+  craig: makeBuiltInSpriteSet('craig', '1'),
+  alex: makeBuiltInSpriteSet('alex', '3'),
 };
 
 export const BUILT_IN_AVATARS = [
@@ -112,6 +165,7 @@ export const mergeAvatarAssets = (remoteAvatars = []) => {
     mergedSprites[avatar.id] = {
       idle: avatar.idle_url || avatar.preview_url || builtInFallback.idle,
       wave: avatar.wave_url || builtInFallback.wave,
+      hello: avatar.hello_url || avatar.wave_url || builtInFallback.hello || builtInFallback.wave,
       love: avatar.love_url || avatar.kiss_url || builtInFallback.love,
       hug: avatar.hug_url || builtInFallback.hug,
       honey: avatar.honey_url || builtInFallback.honey,
