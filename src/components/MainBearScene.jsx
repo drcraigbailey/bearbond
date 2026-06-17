@@ -105,9 +105,16 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   const [secretTapCount, setSecretTapCount] = useState(0);
   const [remainLoggedIn, setRemainLoggedIn] = useState(getRemainLoggedInPreference());
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatDraft, setChatDraft] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const commandPollRunningRef = useRef(false);
   const commandTableWarningShownRef = useRef(false);
   const processedCommandIdsRef = useRef(new Set());
+  const chatEndRef = useRef(null);
 
   // If I picked Yogi, display Craig. If I picked Craig, display Yogi.
   const displayCharacter = profile.character === 'yogi' ? 'craig' : 'yogi';
@@ -214,6 +221,91 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     }
   };
 
+  const markChatRead = async () => {
+    if (!pair?.id || !user?.id) return;
+
+    const { error } = await supabase
+      .from('pair_chat_messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('pair_id', pair.id)
+      .eq('receiver_id', user.id)
+      .is('read_at', null);
+
+    if (error) console.warn('Could not mark chat read:', error.message);
+  };
+
+  const loadChatMessages = async ({ quiet = false } = {}) => {
+    if (!pair?.id || !user?.id) return;
+    if (!quiet) setChatLoading(true);
+
+    const { data, error } = await supabase
+      .from('pair_chat_messages')
+      .select('*')
+      .eq('pair_id', pair.id)
+      .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+      .order('created_at', { ascending: true })
+      .limit(80);
+
+    if (!quiet) setChatLoading(false);
+
+    if (error) {
+      console.warn('Could not load chat messages:', error.message);
+      if (chatOpen) showToast(`Chat unavailable: ${error.message}`);
+      return;
+    }
+
+    const messages = data || [];
+    setChatMessages(messages);
+
+    const unreadCount = messages.filter((message) =>
+      message.receiver_id === user.id && !message.read_at
+    ).length;
+
+    setUnreadChatCount(chatOpen ? 0 : unreadCount);
+
+    if (chatOpen && unreadCount > 0) {
+      await markChatRead();
+      setUnreadChatCount(0);
+    }
+  };
+
+  const sendChatMessage = async (event) => {
+    event?.preventDefault?.();
+
+    const body = chatDraft.trim();
+    if (!body) return;
+
+    if (!receiverId) {
+      showToast('No connected partner to message.');
+      return;
+    }
+
+    setChatSending(true);
+
+    const { error } = await supabase.from('pair_chat_messages').insert([{
+      pair_id: pair.id,
+      sender_id: user.id,
+      receiver_id: receiverId,
+      body,
+    }]);
+
+    setChatSending(false);
+
+    if (error) {
+      console.warn('Could not send chat message:', error.message);
+      showToast(`Message failed: ${error.message}`);
+      return;
+    }
+
+    setChatDraft('');
+    await loadChatMessages({ quiet: true });
+  };
+
+  const handleChatToggle = () => {
+    setChatOpen((open) => !open);
+    setSettingsOpen(false);
+  };
+
   useEffect(() => {
     setupLocalNotifications();
     pollCommandInbox();
@@ -233,6 +325,21 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
   }, [pair.id, user.id, displayCharacter]);
+
+  useEffect(() => {
+    loadChatMessages({ quiet: true });
+    const chatTimer = window.setInterval(() => loadChatMessages({ quiet: true }), 2500);
+
+    return () => window.clearInterval(chatTimer);
+  }, [pair.id, user.id, chatOpen]);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+
+    markChatRead();
+    setUnreadChatCount(0);
+    window.setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50);
+  }, [chatOpen, chatMessages.length]);
 
   useEffect(() => {
     const replayPendingPushEvent = async () => {
@@ -304,10 +411,16 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
         if (onPairReset) onPairReset();
       }).subscribe();
 
+    const chatSub = supabase.channel(`pair_chat_${pair.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pair_chat_messages', filter: `pair_id=eq.${pair.id}` },
+      () => loadChatMessages({ quiet: true }))
+      .subscribe();
+
     return () => {
       supabase.removeChannel(pairSub);
+      supabase.removeChannel(chatSub);
     };
-  }, [pair.id, user.id, onPairReset]);
+  }, [pair.id, user.id, onPairReset, chatOpen]);
 
   useEffect(() => {
     if (!secretTapCount) return undefined;
@@ -481,6 +594,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     setSettingsOpen(false);
 
     await supabase.from('pair_commands').delete().eq('pair_id', pair.id);
+    await supabase.from('pair_chat_messages').delete().eq('pair_id', pair.id);
     await supabase.from('pair_events').delete().eq('pair_id', pair.id);
 
     const resetPayload = {
@@ -546,6 +660,16 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
         </button>
       </div>
 
+      <button
+        type="button"
+        onClick={handleChatToggle}
+        className="chat-fab pixel-btn"
+        aria-label="Open chat"
+      >
+        💬
+        {unreadChatCount > 0 && <span className="chat-unread-badge">{unreadChatCount}</span>}
+      </button>
+
       <div className="scene-selector-wrapper scene-selector-top">
         <label className="scene-select-label" htmlFor="scene-select">
           Send Scene to Partner
@@ -585,6 +709,53 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
           <button onClick={handleLogout} className="pixel-btn danger settings-logout-btn">
             Log Out
           </button>
+        </div>
+      )}
+
+      {chatOpen && (
+        <div className="chat-panel pixel-panel">
+          <div className="chat-panel-header">
+            <div>
+              <span className="chat-panel-eyebrow">BearBond Chat</span>
+              <h2>{getPartnerName()}</h2>
+            </div>
+            <button type="button" onClick={() => setChatOpen(false)} className="chat-close-btn" aria-label="Close chat">
+              ✕
+            </button>
+          </div>
+
+          <div className="chat-message-list">
+            {chatLoading && <div className="chat-empty">Loading tiny letters...</div>}
+            {!chatLoading && chatMessages.length === 0 && (
+              <div className="chat-empty">No messages yet. Send the first bear note.</div>
+            )}
+
+            {chatMessages.map((message) => {
+              const mine = message.sender_id === user.id;
+              return (
+                <div key={message.id} className={`chat-bubble-row ${mine ? 'mine' : 'theirs'}`}>
+                  <div className="chat-bubble">
+                    <p>{message.body}</p>
+                    <span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={chatEndRef} />
+          </div>
+
+          <form className="chat-compose" onSubmit={sendChatMessage}>
+            <input
+              type="text"
+              value={chatDraft}
+              onChange={(e) => setChatDraft(e.target.value)}
+              placeholder="Type a bear note..."
+              maxLength={500}
+            />
+            <button type="submit" className="pixel-btn primary" disabled={chatSending || !chatDraft.trim()}>
+              {chatSending ? '...' : 'Send'}
+            </button>
+          </form>
         </div>
       )}
 
