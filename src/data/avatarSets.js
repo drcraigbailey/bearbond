@@ -28,34 +28,42 @@ const makeBuiltInSpriteSet = (suffix = '') => ({
   celebrate: getFirstAsset(`cane${suffix}.png`, 'cane.png', 'main.png'),
 });
 
-export const AVATAR_SPRITES = {
+export const BUILT_IN_AVATAR_SPRITES = {
   yogi: makeBuiltInSpriteSet(''),
   craig: makeBuiltInSpriteSet('1'),
   alex: makeBuiltInSpriteSet('3'),
 };
 
-export const AVATARS = [
+export const BUILT_IN_AVATARS = [
   {
     id: 'yogi',
     name: 'Yogi',
-    preview: AVATAR_SPRITES.yogi.idle,
+    preview: BUILT_IN_AVATAR_SPRITES.yogi.idle,
   },
   {
     id: 'craig',
     name: 'Craig',
-    preview: AVATAR_SPRITES.craig.idle,
+    preview: BUILT_IN_AVATAR_SPRITES.craig.idle,
   },
   {
     id: 'alex',
     name: 'Alex',
-    preview: AVATAR_SPRITES.alex.idle,
+    preview: BUILT_IN_AVATAR_SPRITES.alex.idle,
   },
 ];
 
-export const AVATAR_BY_ID = AVATARS.reduce((avatars, avatar) => ({
-  ...avatars,
-  [avatar.id]: avatar,
-}), {});
+// Mutable registries so Supabase avatars can be added while the app is running.
+export const AVATAR_SPRITES = { ...BUILT_IN_AVATAR_SPRITES };
+export const AVATARS = [...BUILT_IN_AVATARS];
+
+export const AVATAR_BY_ID = {};
+
+const rebuildAvatarIndex = () => {
+  for (const key of Object.keys(AVATAR_BY_ID)) delete AVATAR_BY_ID[key];
+  for (const avatar of AVATARS) AVATAR_BY_ID[avatar.id] = avatar;
+};
+
+rebuildAvatarIndex();
 
 export const getAvatarName = (avatarId, avatars = AVATARS) => (
   avatars.find((avatar) => avatar.id === avatarId)?.name || AVATAR_BY_ID[avatarId]?.name || 'Yogi'
@@ -66,8 +74,8 @@ export const getAvatarPreview = (avatarId, avatars = AVATARS) => (
 );
 
 export const getSpriteAsset = (avatarId = 'yogi', animation = 'idle', avatarSprites = AVATAR_SPRITES) => {
-  const spriteSet = avatarSprites[avatarId] || AVATAR_SPRITES[avatarId] || AVATAR_SPRITES.yogi;
-  return spriteSet[animation] || spriteSet.idle || AVATAR_SPRITES.yogi.idle;
+  const spriteSet = avatarSprites[avatarId] || AVATAR_SPRITES[avatarId] || BUILT_IN_AVATAR_SPRITES[avatarId] || BUILT_IN_AVATAR_SPRITES.yogi;
+  return spriteSet[animation] || spriteSet.idle || BUILT_IN_AVATAR_SPRITES.yogi.idle;
 };
 
 export const mergeAvatarAssets = (remoteAvatars = []) => {
@@ -86,7 +94,7 @@ export const mergeAvatarAssets = (remoteAvatars = []) => {
 
   const mergedAvatarsById = new Map();
 
-  for (const avatar of AVATARS) {
+  for (const avatar of BUILT_IN_AVATARS) {
     mergedAvatarsById.set(avatar.id, avatar);
   }
 
@@ -94,12 +102,12 @@ export const mergeAvatarAssets = (remoteAvatars = []) => {
     mergedAvatarsById.set(avatar.id, avatar);
   }
 
-  const mergedSprites = { ...AVATAR_SPRITES };
+  const mergedSprites = { ...BUILT_IN_AVATAR_SPRITES };
 
   for (const avatar of remoteAvatars || []) {
     if (!avatar?.id) continue;
 
-    const builtInFallback = AVATAR_SPRITES[avatar.id] || AVATAR_SPRITES.yogi;
+    const builtInFallback = BUILT_IN_AVATAR_SPRITES[avatar.id] || BUILT_IN_AVATAR_SPRITES.yogi;
 
     mergedSprites[avatar.id] = {
       idle: avatar.idle_url || avatar.preview_url || builtInFallback.idle,
@@ -113,8 +121,20 @@ export const mergeAvatarAssets = (remoteAvatars = []) => {
     };
   }
 
+  AVATARS.splice(0, AVATARS.length, ...Array.from(mergedAvatarsById.values()));
+
+  for (const key of Object.keys(AVATAR_SPRITES)) {
+    if (!mergedSprites[key]) delete AVATAR_SPRITES[key];
+  }
+
+  for (const [key, value] of Object.entries(mergedSprites)) {
+    AVATAR_SPRITES[key] = value;
+  }
+
+  rebuildAvatarIndex();
+
   return {
-    avatars: Array.from(mergedAvatarsById.values()),
-    avatarSprites: mergedSprites,
+    avatars: AVATARS,
+    avatarSprites: AVATAR_SPRITES,
   };
 };
