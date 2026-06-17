@@ -22,4 +22,7 @@ export const SCENES = {
   shop: { id: 'shop', name: 'Shop', image: getSceneImage('backdrop-shop.png', 'backdrop-shop.svg') },
   vets: { id: 'vets', name: 'Vets', image: getSceneImage('backdrop-vets.png', 'backdrop-vets.svg') },
   pub: { id: 'pub', name: 'The Golden Tankard', image: getSceneImage('backdrop-pub.png') },
+  hols: { id: 'hols', name: 'Holiday Room', image: getSceneImage('backdrop-hols.png') },
+  bed: { id: 'bed', name: 'Night Bedroom', image: getSceneImage('backdrop-bed.png') },
+  town: { id: 'town', name: 'Rainy Town', image: getSceneImage('backdrop-town.png') },
 };
