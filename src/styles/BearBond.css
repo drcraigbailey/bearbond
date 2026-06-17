@@ -289,12 +289,13 @@ body, html {
 /* Bear Sprite Area */
 .scene-center {
   flex: 0 0 auto;
-  min-height: clamp(255px, 34vh, 315px);
+  min-height: clamp(285px, 39vh, 360px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
   position: relative;
-  padding-top: 1.25rem;
+  z-index: 20;
+  padding-top: clamp(4.25rem, 10vh, 6rem);
 }
 
 .bear-sprite-wrapper {
@@ -361,10 +362,11 @@ body, html {
   width: min(340px, calc(100% - 42px));
   margin: 0.85rem auto 0;
   padding: 0.65rem 0.75rem 0.75rem;
-  background: var(--ui-bg);
+  background: rgba(255, 255, 255, 0.96);
   border: var(--pixel-border);
   box-shadow: 5px 5px 0px rgba(0,0,0,0.32);
-  z-index: 70;
+  position: relative;
+  z-index: 90;
 }
 
 .scene-select-label {
