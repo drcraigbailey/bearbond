@@ -46,6 +46,7 @@ const CRAIG_MAP = {
 
 const FRAME_COUNT = 6;
 const FRAME_DURATION_MS = 140;
+const ACTION_PLAYTHROUGH_COUNT = 3;
 const MAX_SPRITE_BOX = 250;
 const FALLBACK_RATIOS = {
   yogi: 1,
@@ -84,12 +85,13 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
 
     if (currentAnimation === 'idle') return undefined;
 
-    let nextFrame = 0;
+    let absoluteFrame = 0;
+    const totalFrames = FRAME_COUNT * ACTION_PLAYTHROUGH_COUNT;
 
     const frameInterval = window.setInterval(() => {
-      nextFrame += 1;
+      absoluteFrame += 1;
 
-      if (nextFrame >= FRAME_COUNT) {
+      if (absoluteFrame >= totalFrames) {
         window.clearInterval(frameInterval);
         setFrame(FRAME_COUNT - 1);
 
@@ -100,7 +102,7 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
         return;
       }
 
-      setFrame(nextFrame);
+      setFrame(absoluteFrame % FRAME_COUNT);
     }, FRAME_DURATION_MS);
 
     return () => {
