@@ -107,7 +107,13 @@ serve(async (req) => {
   }
 
   try {
-    const { pairId, senderId, actionName } = await req.json();
+    const {
+      pairId,
+      senderId,
+      actionName,
+      eventType = 'action',
+      notificationLabel,
+    } = await req.json();
 
     if (!pairId || !senderId || !actionName) {
       return jsonResponse({ error: 'Missing pairId, senderId, or actionName.' }, 400);
@@ -159,6 +165,12 @@ serve(async (req) => {
       ? senderProfile.character.charAt(0).toUpperCase() + senderProfile.character.slice(1)
       : 'Your partner';
 
+    const cleanEventType = eventType === 'scene' ? 'scene' : 'action';
+    const cleanLabel = String(notificationLabel || actionName);
+    const notificationBody = cleanEventType === 'scene'
+      ? `${senderName} changed your scene to ${cleanLabel}! 🏞️`
+      : `${senderName} sent you a ${cleanLabel}! ❤️`;
+
     const accessToken = await getFirebaseAccessToken();
 
     const firebaseResponse = await fetch(
@@ -174,12 +186,14 @@ serve(async (req) => {
             token: receiverProfile.push_token,
             notification: {
               title: 'BearBond',
-              body: `${senderName} sent you a ${actionName}! ❤️`,
+              body: notificationBody,
             },
             data: {
               pairId: String(pairId),
               senderId: String(senderId),
               actionName: String(actionName),
+              eventType: cleanEventType,
+              notificationLabel: cleanLabel,
             },
             android: {
               priority: 'HIGH',
