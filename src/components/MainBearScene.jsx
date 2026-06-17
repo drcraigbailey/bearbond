@@ -521,31 +521,47 @@ export default function MainBearScene({
     const newScene = e.target.value;
     if (!newScene) return;
 
-    const sceneName = SCENES[newScene]?.name || 'Scene';
+    const nextSceneData = SCENES[newScene];
+    if (!nextSceneData) {
+      showToast('Scene not found.');
+      setScenePickerValue('');
+      return;
+    }
+
+    const sceneName = nextSceneData.name || 'Scene';
     const now = new Date().toISOString();
 
     setScenePickerValue(newScene);
+    setActiveScene(newScene);
+
     const commandSent = await sendDirectCommand({ commandType: 'scene', commandName: newScene });
     setScenePickerValue('');
 
-    if (!commandSent) return;
-
-    supabase.from('pairs').update({
+    const { error } = await supabase.from('pairs').update({
+      active_scene: newScene,
       last_scene: newScene,
       last_scene_from: user.id,
       last_scene_at: now,
-    }).eq('id', pair.id).then(({ error }) => {
-      if (error) console.warn('Could not update pair last scene:', error.message);
-    });
+    }).eq('id', pair.id);
 
-    await sendClosedAppPush({
-      actionName: newScene,
-      eventType: 'scene',
-      notificationLabel: sceneName,
-      eventAt: now,
-    });
+    if (error) {
+      console.warn('Could not update pair scene:', error.message);
+      showToast(`Scene changed locally, but could not save: ${error.message}`);
+      return;
+    }
 
-    showToast(`Scene sent to partner: ${sceneName}`);
+    if (commandSent) {
+      await sendClosedAppPush({
+        actionName: newScene,
+        eventType: 'scene',
+        notificationLabel: sceneName,
+        eventAt: now,
+      });
+
+      showToast(`Scene sent to partner: ${sceneName}`);
+    } else {
+      showToast(`Scene changed to ${sceneName}. Partner not notified.`);
+    }
   };
 
   const handleAvatarSelect = async (avatarId) => {
