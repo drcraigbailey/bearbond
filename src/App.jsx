@@ -7,6 +7,7 @@ import PairingScreen from './components/PairingScreen';
 import MainBearScene from './components/MainBearScene';
 import { registerPushNotifications } from './lib/pushNotifications';
 import './styles/BearBond.css';
+import './styles/BearBondLayoutFix.css';
 
 export default function App() {
   const [session, setSession] = useState(null);
