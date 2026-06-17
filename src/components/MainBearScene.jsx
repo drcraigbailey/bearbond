@@ -1019,18 +1019,7 @@ export default function MainBearScene({
 
       {settingsOpen && (
         <div className="settings-popover">
-          <h2 className="settings-title">Settings</h2>
-
-          <button
-            type="button"
-            onClick={() => {
-              setSettingsOpen(false);
-              setAdminOpen(true);
-            }}
-            className="pixel-btn secondary settings-start-over-btn"
-          >
-            Registered Users
-          </button>
+          <h2 className="settings-title">Settings</h2>
 
           <div className="setting-toggle-row" style={{ alignItems: 'stretch', flexDirection: 'column', gap: '0.55rem' }}>
             <span className="setting-toggle-copy">
