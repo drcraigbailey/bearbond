@@ -162,6 +162,7 @@ export default function MainBearScene({
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [partnerCharacterOverride, setPartnerCharacterOverride] = useState('');
   const [musicEnabled, setMusicEnabled] = useState(() => getStoredBooleanPreference(MUSIC_ENABLED_STORAGE_KEY, false));
   const [soundsEnabled, setSoundsEnabled] = useState(() => getStoredBooleanPreference(SOUNDS_ENABLED_STORAGE_KEY, true));
   const commandPollRunningRef = useRef(false);
@@ -176,9 +177,13 @@ export default function MainBearScene({
   const availableScenes = scenes && Object.keys(scenes).length ? scenes : DEFAULT_SCENES;
   const availableAvatars = avatars && avatars.length ? avatars : DEFAULT_AVATARS;
   const ownCharacter = profile.character || 'yogi';
-  const partnerCharacter = partnerProfile?.character || '';
+  const partnerCharacter = partnerCharacterOverride || partnerProfile?.character || '';
   const displayCharacter = partnerCharacter || ownCharacter;
   const receiverId = pair.user_one_id === user.id ? pair.user_two_id : pair.user_one_id;
+
+  useEffect(() => {
+    setPartnerCharacterOverride('');
+  }, [partnerProfile?.id, partnerProfile?.character]);
 
   useEffect(() => {
     setDisplayNameDraft(profile.display_name || '');
@@ -334,6 +339,30 @@ export default function MainBearScene({
     setActiveScene(storedScene || 'home');
   }, [pair.id, user.id]);
 
+  const handleIncomingAvatar = async (avatarId, { notify = false } = {}) => {
+    if (!avatarId) return;
+
+    const avatarName = getAvatarName(avatarId, availableAvatars);
+    const partnerName = getPartnerName();
+    const notificationBody = `${partnerName} changed avatar to ${avatarName}.`;
+
+    setPartnerCharacterOverride(avatarId);
+    setCurrentAnimation('idle');
+    showToast(notificationBody);
+
+    if (!notify) return;
+
+    try {
+      await sendLocalActionNotification({
+        partnerName,
+        actionName: avatarName,
+        notificationBody,
+      });
+    } catch (error) {
+      console.log('Could not schedule local avatar notification.', error);
+    }
+  };
+
   const handleIncomingAction = async (actionName, { notify = false } = {}) => {
     const partnerName = getPartnerName();
     setCurrentAnimation(actionName);
@@ -381,6 +410,8 @@ export default function MainBearScene({
 
     if (command.command_type === 'scene') {
       await handleIncomingScene(command.command_name, { notify });
+    } else if (command.command_type === 'avatar') {
+      await handleIncomingAvatar(command.command_name, { notify });
     } else {
       await handleIncomingAction(command.command_name, { notify });
     }
@@ -580,7 +611,7 @@ export default function MainBearScene({
           pair_id: pending.pairId,
           sender_id: pending.senderId,
           receiver_id: user.id,
-          command_type: pending.eventType === 'scene' ? 'scene' : 'action',
+          command_type: pending.eventType === 'scene' ? 'scene' : pending.eventType === 'avatar' ? 'avatar' : 'action',
           command_name: pending.actionName,
         }, { markHandled: false, notify: false });
 
@@ -610,7 +641,7 @@ export default function MainBearScene({
         pair_id: detail.pairId,
         sender_id: detail.senderId,
         receiver_id: user.id,
-        command_type: detail.eventType === 'scene' ? 'scene' : 'action',
+        command_type: detail.eventType === 'scene' ? 'scene' : detail.eventType === 'avatar' ? 'avatar' : 'action',
         command_name: detail.actionName,
       }, { markHandled: false, notify: false });
     };
@@ -803,8 +834,24 @@ export default function MainBearScene({
       return;
     }
 
+    const avatarName = getAvatarName(avatarId, availableAvatars);
+    const now = new Date().toISOString();
+    const commandSent = await sendDirectCommand({ commandType: 'avatar', commandName: avatarId });
+
+    if (commandSent) {
+      await sendClosedAppPush({
+        actionName: avatarId,
+        eventType: 'avatar',
+        notificationLabel: avatarName,
+        eventAt: now,
+      });
+    }
+
     setCurrentAnimation('idle');
-    showToast(`Your avatar changed to ${getAvatarName(avatarId, availableAvatars)}.`);
+    showToast(commandSent
+      ? `Your avatar changed to ${avatarName}. Partner updated.`
+      : `Your avatar changed to ${avatarName}, but partner update did not send.`
+    );
   };
 
   const handleRemainLoggedInChange = (e) => {

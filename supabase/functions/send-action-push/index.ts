@@ -171,14 +171,18 @@ serve(async (req) => {
       ? 'scene'
       : eventType === 'chat'
         ? 'chat'
-        : 'action';
+        : eventType === 'avatar'
+          ? 'avatar'
+          : 'action';
     const cleanLabel = String(notificationLabel || actionName);
     const cleanEventAt = String(eventAt || new Date().toISOString());
     const notificationBody = cleanEventType === 'scene'
       ? `${senderName} changed your scene to ${cleanLabel}! 🏞️`
       : cleanEventType === 'chat'
         ? `${senderName} sent you a message! 💬`
-        : `${senderName} sent you a ${cleanLabel}! ❤️`;
+        : cleanEventType === 'avatar'
+          ? `${senderName} changed avatar to ${cleanLabel}! 🧸`
+          : `${senderName} sent you a ${cleanLabel}! ❤️`;
 
     const accessToken = await getFirebaseAccessToken();
 
