@@ -265,9 +265,11 @@ body, html {
   color: #6d4c41;
 }
 
+.settings-start-over-btn,
 .settings-logout-btn {
   font-size: 0.65rem;
   padding: 0.8rem;
+  margin-top: 0.55rem;
 }
 
 .toast-notification {
