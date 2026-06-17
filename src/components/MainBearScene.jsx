@@ -159,7 +159,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
   const sendClosedAppPush = async ({ actionName, eventType = 'action', notificationLabel }) => {
     try {
-      const { error } = await supabase.functions.invoke('send-action-push', {
+      const { data, error } = await supabase.functions.invoke('send-action-push', {
         body: {
           pairId: pair.id,
           senderId: user.id,
@@ -171,9 +171,27 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
       if (error) {
         console.warn('Could not send push notification:', error.message || error);
+        showToast(`Push failed: ${error.message || 'Function error'}`);
+        return false;
       }
+
+      if (data?.skipped) {
+        console.warn('Push notification skipped:', data.reason);
+        showToast(`Push skipped: ${data.reason || 'No receiver token'}`);
+        return false;
+      }
+
+      if (data?.error) {
+        console.warn('Push notification error:', data);
+        showToast(`Push failed: ${data.error}`);
+        return false;
+      }
+
+      return true;
     } catch (error) {
       console.warn('Could not send push notification:', error);
+      showToast('Push failed before sending.');
+      return false;
     }
   };
 
@@ -220,13 +238,15 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
     const sceneName = SCENES[newScene]?.name || 'Scene';
 
-    await sendClosedAppPush({
+    const pushSent = await sendClosedAppPush({
       actionName: newScene,
       eventType: 'scene',
       notificationLabel: sceneName,
     });
 
-    showToast(`Scene sent to partner: ${sceneName}`);
+    if (pushSent) {
+      showToast(`Scene sent to partner: ${sceneName}`);
+    }
   };
 
   const handleRemainLoggedInChange = (e) => {
