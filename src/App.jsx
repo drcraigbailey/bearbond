@@ -6,6 +6,9 @@ import CharacterSelectScreen from './components/CharacterSelectScreen';
 import PairingScreen from './components/PairingScreen';
 import MainBearScene from './components/MainBearScene';
 import { registerPushNotifications } from './lib/pushNotifications';
+import { SCENES } from './data/scenes';
+import { AVATARS, AVATAR_SPRITES, mergeAvatarAssets } from './data/avatarSets';
+import { loadRemoteAvatars, loadRemoteScenes } from './lib/remoteAssets';
 import './styles/BearBond.css';
 import './styles/BearBondLayoutFix.css';
 
@@ -93,12 +96,54 @@ const profilesAreMeaningfullyDifferent = (currentProfile, nextProfile) => {
   );
 };
 
+const mergeSceneAssets = (remoteScenes = []) => {
+  const mergedScenes = { ...SCENES };
+
+  for (const scene of remoteScenes || []) {
+    if (!scene?.id || !scene?.image) continue;
+    mergedScenes[scene.id] = scene;
+  }
+
+  return mergedScenes;
+};
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [partnerProfile, setPartnerProfile] = useState(null);
   const [pair, setPair] = useState(null);
+  const [remoteScenes, setRemoteScenes] = useState([]);
+  const [remoteAvatars, setRemoteAvatars] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const scenes = useMemo(() => mergeSceneAssets(remoteScenes), [remoteScenes]);
+  const avatarAssets = useMemo(() => mergeAvatarAssets(remoteAvatars), [remoteAvatars]);
+  const avatars = avatarAssets.avatars || AVATARS;
+  const avatarSprites = avatarAssets.avatarSprites || AVATAR_SPRITES;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCustomAssets = async () => {
+      const [nextScenes, nextAvatars] = await Promise.all([
+        loadRemoteScenes(),
+        loadRemoteAvatars(),
+      ]);
+
+      if (cancelled) return;
+
+      setRemoteScenes(nextScenes);
+      setRemoteAvatars(nextAvatars);
+    };
+
+    loadCustomAssets();
+    const pollTimer = window.setInterval(loadCustomAssets, 15000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollTimer);
+    };
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -350,6 +395,7 @@ export default function App() {
   if (!profile?.character) return (
     <CharacterSelectScreen 
       user={session.user} 
+      avatars={avatars}
       onComplete={(char) => setProfile((currentProfile) => ({
         ...(currentProfile || { id: session.user.id, email: session.user.email }),
         character: char,
@@ -364,6 +410,9 @@ export default function App() {
       user={session.user}
       pair={pair}
       profile={pairedDisplayProfile}
+      scenes={scenes}
+      avatars={avatars}
+      avatarSprites={avatarSprites}
       onPairReset={handlePairReset}
       onCharacterChange={handleCharacterChange}
       onAvatarChange={handleAvatarChange}
