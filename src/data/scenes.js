@@ -13,8 +13,7 @@ const getSceneImage = (preferredFile, fallbackFile = preferredFile) => {
   return sceneAssets[`../assets/scenes/${preferredFile}`] || sceneAssets[`../assets/scenes/${fallbackFile}`];
 };
 
-// The "export const" is required here to match the import { SCENES } in your other files.
-export const SCENES = {
+export const BUILT_IN_SCENES = {
   home: { id: 'home', name: 'Cosy Cabin', image: getSceneImage('backdrop-home.png') },
   hill: { id: 'hill', name: 'Sunny Hills', image: getSceneImage('backdrop-hill.png') },
   uni: { id: 'uni', name: 'University', image: getSceneImage('backdrop-uni.png') },
@@ -27,4 +26,24 @@ export const SCENES = {
   town: { id: 'town', name: 'Rainy Town', image: getSceneImage('backdrop-town.png') },
   mway: { id: 'mway', name: 'Motorway', image: getSceneImage('backdrop-mway.png') },
   romania: { id: 'romania', name: 'Romania', image: getSceneImage('backdrop-romania.png') },
+};
+
+// Mutable object so remote Supabase scenes can be merged without remounting the app.
+export const SCENES = { ...BUILT_IN_SCENES };
+
+export const applyRemoteScenes = (remoteScenes = []) => {
+  for (const key of Object.keys(SCENES)) {
+    if (!BUILT_IN_SCENES[key]) delete SCENES[key];
+  }
+
+  for (const [key, value] of Object.entries(BUILT_IN_SCENES)) {
+    SCENES[key] = value;
+  }
+
+  for (const scene of remoteScenes || []) {
+    if (!scene?.id || !scene?.image) continue;
+    SCENES[scene.id] = scene;
+  }
+
+  return SCENES;
 };
