@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from './lib/supabaseClient';
 import { App as CapacitorApp } from '@capacitor/app'; 
 import AuthScreen from './components/AuthScreen';
@@ -24,6 +24,11 @@ const saveStoredPairId = (userId, pairId) => {
 const clearStoredPairId = (userId) => {
   if (typeof window === 'undefined' || !userId) return;
   window.localStorage.removeItem(getStoredPairKey(userId));
+};
+
+const getPartnerIdFromPair = (pair, userId) => {
+  if (!pair || !userId) return null;
+  return pair.user_one_id === userId ? pair.user_two_id : pair.user_one_id;
 };
 
 const getPairTimestamp = (item) => {
@@ -78,9 +83,20 @@ const pairsAreMeaningfullyDifferent = (currentPair, nextPair) => {
   );
 };
 
+const profilesAreMeaningfullyDifferent = (currentProfile, nextProfile) => {
+  if (!currentProfile?.id || !nextProfile?.id) return true;
+
+  return (
+    currentProfile.character !== nextProfile.character ||
+    currentProfile.email !== nextProfile.email ||
+    currentProfile.push_updated_at !== nextProfile.push_updated_at
+  );
+};
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [partnerProfile, setPartnerProfile] = useState(null);
   const [pair, setPair] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -97,6 +113,7 @@ export default function App() {
         fetchProfileAndPair(session.user.id, session.user.email);
       } else {
         setProfile(null);
+        setPartnerProfile(null);
         setPair(null);
         setLoading(false);
       }
@@ -142,6 +159,7 @@ export default function App() {
 
       if (!data || (data.user_one_id !== session.user.id && data.user_two_id !== session.user.id)) {
         clearStoredPairId(session.user.id);
+        setPartnerProfile(null);
         setPair(null);
         return;
       }
@@ -168,6 +186,59 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
   }, [session?.user?.id, pair?.id, pair?.last_action_at, pair?.last_scene_at, pair?.user_two_id]);
+
+  useEffect(() => {
+    const partnerId = getPartnerIdFromPair(pair, session?.user?.id);
+
+    if (!partnerId) {
+      setPartnerProfile(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const refreshPartnerProfile = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', partnerId)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn('Could not fetch partner profile:', error.message);
+        return;
+      }
+
+      if (data) {
+        setPartnerProfile((currentProfile) =>
+          profilesAreMeaningfullyDifferent(currentProfile, data) ? data : currentProfile
+        );
+      }
+    };
+
+    refreshPartnerProfile();
+    const pollTimer = window.setInterval(refreshPartnerProfile, 2000);
+
+    const profileSub = supabase.channel(`partner_profile_${partnerId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${partnerId}` },
+      (payload) => {
+        if (payload.eventType === 'DELETE') {
+          setPartnerProfile(null);
+          return;
+        }
+
+        if (payload.new) setPartnerProfile(payload.new);
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollTimer);
+      supabase.removeChannel(profileSub);
+    };
+  }, [pair?.id, pair?.user_one_id, pair?.user_two_id, session?.user?.id]);
 
   const fetchProfileAndPair = async (userId, email) => {
     setLoading(true);
@@ -213,6 +284,7 @@ export default function App() {
       clearStoredPairId(session.user.id);
     }
 
+    setPartnerProfile(null);
     setPair(null);
   };
 
@@ -255,9 +327,21 @@ export default function App() {
     setLoading(false);
     setSession(null);
     setProfile(null);
+    setPartnerProfile(null);
     setPair(null);
     await supabase.auth.signOut();
   };
+
+  const pairedDisplayProfile = useMemo(() => {
+    if (!profile) return profile;
+
+    return {
+      ...profile,
+      character: partnerProfile?.character || profile.character,
+      partnerProfile,
+      ownCharacter: profile.character,
+    };
+  }, [profile, partnerProfile]);
 
   if (loading) return <div className="loading-screen">Loading BearBond...</div>;
 
@@ -279,7 +363,7 @@ export default function App() {
     <MainBearScene
       user={session.user}
       pair={pair}
-      profile={profile}
+      profile={pairedDisplayProfile}
       onPairReset={handlePairReset}
       onCharacterChange={handleCharacterChange}
       onAvatarChange={handleAvatarChange}
