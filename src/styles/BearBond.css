@@ -219,9 +219,14 @@ body, html {
   right: 12px;
   z-index: 220;
   width: min(330px, calc(100% - 24px));
+  max-height: calc(100dvh - 86px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: var(--bg-color);
   border: var(--pixel-border);
   padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   box-shadow: 6px 6px 0px rgba(0,0,0,0.35);
 }
 
