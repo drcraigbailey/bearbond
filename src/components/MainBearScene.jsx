@@ -3,13 +3,14 @@ import { supabase, getRemainLoggedInPreference, setRemainLoggedInPreference } fr
 import { LocalNotifications } from '@capacitor/local-notifications';
 import BearSprite from './BearSprite';
 import AdminPanel from './AdminPanel';
-import { SCENES } from '../data/scenes';
+import { SCENES as DEFAULT_SCENES } from '../data/scenes';
 import { ACTIONS } from '../data/actions';
-import { AVATARS, getAvatarName } from '../data/avatarSets';
+import { AVATARS as DEFAULT_AVATARS, getAvatarName } from '../data/avatarSets';
 import logoImg from '../assets/bear/yogi/main.png';
 
 const BEARBOND_NOTIFICATION_CHANNEL = 'bearbond-actions';
 const PENDING_PUSH_EVENT_KEY = 'bearbond.pendingPushEvent';
+const BACKGROUND_MUSIC_SRC = '/music/Summit_Jig.mp3';
 
 const setupLocalNotifications = async () => {
   try {
@@ -98,6 +99,9 @@ export default function MainBearScene({
   user,
   pair,
   profile,
+  scenes = DEFAULT_SCENES,
+  avatars = DEFAULT_AVATARS,
+  avatarSprites,
   onPairReset,
   onCharacterChange,
   onAvatarChange,
@@ -119,11 +123,15 @@ export default function MainBearScene({
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [musicEnabled, setMusicEnabled] = useState(false);
   const commandPollRunningRef = useRef(false);
   const commandTableWarningShownRef = useRef(false);
   const processedCommandIdsRef = useRef(new Set());
   const chatEndRef = useRef(null);
+  const musicRef = useRef(null);
 
+  const availableScenes = scenes && Object.keys(scenes).length ? scenes : DEFAULT_SCENES;
+  const availableAvatars = avatars && avatars.length ? avatars : DEFAULT_AVATARS;
   const displayCharacter = profile.character || 'yogi';
   const receiverId = pair.user_one_id === user.id ? pair.user_two_id : pair.user_one_id;
 
@@ -132,7 +140,58 @@ export default function MainBearScene({
     setTimeout(() => setToastMessage(''), 5000);
   };
 
-  const getPartnerName = () => getAvatarName(displayCharacter);
+  const getPartnerName = () => getAvatarName(displayCharacter, availableAvatars);
+
+  const startMusic = async () => {
+    const music = musicRef.current;
+    if (!music) return false;
+
+    try {
+      music.volume = 0.45;
+      music.muted = false;
+      await music.play();
+      return true;
+    } catch (error) {
+      console.warn('Could not start background music:', error);
+      return false;
+    }
+  };
+
+  const handleMusicToggle = async () => {
+    const nextEnabled = !musicEnabled;
+    setMusicEnabled(nextEnabled);
+
+    if (!nextEnabled) {
+      musicRef.current?.pause();
+      showToast('Music off.');
+      return;
+    }
+
+    const started = await startMusic();
+    showToast(started ? 'Music on.' : 'Tap again to start music.');
+  };
+
+  useEffect(() => {
+    const music = musicRef.current;
+    if (!music) return;
+
+    music.loop = true;
+    music.volume = 0.45;
+
+    if (!musicEnabled) {
+      music.pause();
+      return;
+    }
+
+    music.play().catch((error) => {
+      console.warn('Background music play was blocked:', error);
+    });
+  }, [musicEnabled]);
+
+  useEffect(() => {
+    const nextScene = pair.active_scene || pair.last_scene || 'home';
+    if (nextScene && nextScene !== activeScene) setActiveScene(nextScene);
+  }, [pair.active_scene, pair.last_scene, activeScene]);
 
   const handleIncomingAction = async (actionName, { notify = false } = {}) => {
     const partnerName = getPartnerName();
@@ -149,9 +208,7 @@ export default function MainBearScene({
   };
 
   const handleIncomingScene = async (sceneId, { notify = false } = {}) => {
-    const nextSceneData = SCENES[sceneId];
-    if (!nextSceneData) return;
-
+    const nextSceneData = availableScenes[sceneId] || DEFAULT_SCENES[sceneId] || { id: sceneId, name: sceneId };
     const partnerName = getPartnerName();
     const sceneNotificationBody = `${partnerName} changed your scene to ${nextSceneData.name}! 🏞️`;
 
@@ -411,6 +468,9 @@ export default function MainBearScene({
         }
 
         setIsPartnerConnected(!!updatedPair.user_two_id);
+
+        const incomingScene = updatedPair.active_scene || updatedPair.last_scene;
+        if (incomingScene) setActiveScene(incomingScene);
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` },
       () => {
@@ -521,7 +581,7 @@ export default function MainBearScene({
     const newScene = e.target.value;
     if (!newScene) return;
 
-    const nextSceneData = SCENES[newScene];
+    const nextSceneData = availableScenes[newScene] || DEFAULT_SCENES[newScene];
     if (!nextSceneData) {
       showToast('Scene not found.');
       setScenePickerValue('');
@@ -580,7 +640,7 @@ export default function MainBearScene({
     }
 
     setCurrentAnimation('idle');
-    showToast(`Avatar changed to ${getAvatarName(avatarId)}.`);
+    showToast(`Avatar changed to ${getAvatarName(avatarId, availableAvatars)}.`);
   };
 
   const handleRemainLoggedInChange = (e) => {
@@ -671,10 +731,16 @@ export default function MainBearScene({
     await confirmDialog.onConfirm();
   };
 
-  const currentSceneData = SCENES[activeScene] || SCENES.home;
+  const currentSceneData =
+    availableScenes[activeScene] ||
+    DEFAULT_SCENES[activeScene] ||
+    availableScenes.home ||
+    DEFAULT_SCENES.home;
 
   return (
     <div className="main-scene" style={{ backgroundImage: `url(${currentSceneData.image})` }}>
+      <audio ref={musicRef} src={BACKGROUND_MUSIC_SRC} loop preload="auto" />
+
       <div className="top-bar">
         <div className="status-badge">
           {isPartnerConnected ? '🟢 Connected' : '🔴 Waiting...'}
@@ -688,13 +754,23 @@ export default function MainBearScene({
           <img src={logoImg} alt="BearBond" className="top-logo" />
         </button>
 
-        <button
-          onClick={() => setSettingsOpen((open) => !open)}
-          className="icon-btn"
-          aria-label="Open settings"
-        >
-          ⚙️
-        </button>
+        <div style={{ display: 'flex', gap: '0.45rem', justifySelf: 'end', alignItems: 'center' }}>
+          <button
+            onClick={handleMusicToggle}
+            className="icon-btn"
+            aria-label={musicEnabled ? 'Turn music off' : 'Turn music on'}
+            title={musicEnabled ? 'Music off' : 'Music on'}
+          >
+            {musicEnabled ? '🔊' : '🔇'}
+          </button>
+          <button
+            onClick={() => setSettingsOpen((open) => !open)}
+            className="icon-btn"
+            aria-label="Open settings"
+          >
+            ⚙️
+          </button>
+        </div>
       </div>
 
       <button
@@ -714,7 +790,7 @@ export default function MainBearScene({
         <div className="scene-select-frame">
           <select id="scene-select" value={scenePickerValue} onChange={handleChangeScene} className="pixel-select">
             <option value="">Choose Scene</option>
-            {Object.values(SCENES).map(scene => (
+            {Object.values(availableScenes).map(scene => (
               <option key={scene.id} value={scene.id}>{scene.name}</option>
             ))}
           </select>
@@ -741,7 +817,7 @@ export default function MainBearScene({
           <div className="settings-avatar-picker">
             <span className="setting-toggle-label">Avatar</span>
             <div className="settings-avatar-grid">
-              {AVATARS.map((avatar) => (
+              {availableAvatars.map((avatar) => (
                 <button
                   type="button"
                   key={avatar.id}
@@ -819,10 +895,11 @@ export default function MainBearScene({
       {toastMessage && <div className="toast-notification">{toastMessage}</div>}
 
       <div className="scene-center">
-        <BearSprite 
-          currentAnimation={currentAnimation} 
-          onAnimationComplete={() => setCurrentAnimation('idle')} 
-          character={displayCharacter} 
+        <BearSprite
+          currentAnimation={currentAnimation}
+          onAnimationComplete={() => setCurrentAnimation('idle')}
+          character={displayCharacter}
+          avatarSprites={avatarSprites}
         />
       </div>
 
