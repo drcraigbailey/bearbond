@@ -6,7 +6,7 @@ import AdminPanel from './AdminPanel';
 import { SCENES } from '../data/scenes';
 import { ACTIONS } from '../data/actions';
 import { AVATARS, getAvatarName } from '../data/avatarSets';
-import logoImg from '../assets/bear/main.png';
+import logoImg from '../assets/bear/yogi/main.png';
 
 const BEARBOND_NOTIFICATION_CHANNEL = 'bearbond-actions';
 const PENDING_PUSH_EVENT_KEY = 'bearbond.pendingPushEvent';
