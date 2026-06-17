@@ -140,6 +140,7 @@ export default function MainBearScene({
   onPairReset,
   onCharacterChange,
   onAvatarChange,
+  onDisplayNameChange,
   onLogout,
 }) {
   const [activeScene, setActiveScene] = useState(() => getStoredScene(pair.id, user.id) || 'home');
@@ -155,6 +156,8 @@ export default function MainBearScene({
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatDraft, setChatDraft] = useState('');
+  const [displayNameDraft, setDisplayNameDraft] = useState(profile.display_name || '');
+  const [displayNameSaving, setDisplayNameSaving] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -175,14 +178,23 @@ export default function MainBearScene({
   const displayCharacter = partnerCharacter || ownCharacter;
   const receiverId = pair.user_one_id === user.id ? pair.user_two_id : pair.user_one_id;
 
+  useEffect(() => {
+    setDisplayNameDraft(profile.display_name || '');
+  }, [profile.display_name]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 5000);
   };
 
-  const getPartnerName = () => partnerCharacter
-    ? getAvatarName(partnerCharacter, availableAvatars)
-    : 'Your partner';
+  const getPartnerName = () => {
+    const savedName = String(partnerProfile?.display_name || '').trim();
+    if (savedName) return savedName;
+
+    return partnerCharacter
+      ? getAvatarName(partnerCharacter, availableAvatars)
+      : 'Your partner';
+  };
 
   const startMusic = async () => {
     const music = musicRef.current;
@@ -706,6 +718,24 @@ export default function MainBearScene({
     showToast(`Scene sent to partner: ${sceneName}`);
   };
 
+  const handleDisplayNameSave = async () => {
+    const cleanName = displayNameDraft.trim().slice(0, 40);
+
+    if (!onDisplayNameChange) {
+      showToast('Name setting is not available.');
+      return;
+    }
+
+    setDisplayNameSaving(true);
+    const saved = await onDisplayNameChange(cleanName);
+    setDisplayNameSaving(false);
+
+    showToast(saved
+      ? `Notifications will come from ${cleanName || 'your avatar name'}.`
+      : 'Could not save your name.'
+    );
+  };
+
   const handleAvatarSelect = async (avatarId) => {
     if (avatarId === ownCharacter) return;
 
@@ -891,6 +921,30 @@ export default function MainBearScene({
       {settingsOpen && (
         <div className="settings-popover">
           <h2 className="settings-title">Settings</h2>
+
+          <div className="setting-toggle-row" style={{ alignItems: 'stretch', flexDirection: 'column', gap: '0.55rem' }}>
+            <span className="setting-toggle-copy">
+              <span className="setting-toggle-label">Who am I?</span>
+              <span className="setting-toggle-hint">This name is used in your partner's notifications and action messages.</span>
+            </span>
+            <input
+              type="text"
+              value={displayNameDraft}
+              onChange={(e) => setDisplayNameDraft(e.target.value)}
+              placeholder="Craig"
+              maxLength={40}
+              className="pixel-select"
+              style={{ width: '100%' }}
+            />
+            <button
+              type="button"
+              onClick={handleDisplayNameSave}
+              className="pixel-btn primary"
+              disabled={displayNameSaving}
+            >
+              {displayNameSaving ? 'Saving...' : 'Save name'}
+            </button>
+          </div>
           <label className="setting-toggle-row">
             <input
               type="checkbox"
@@ -937,7 +991,7 @@ export default function MainBearScene({
                 <button
                   type="button"
                   key={avatar.id}
-                  className={`settings-avatar-card ${displayCharacter === avatar.id ? 'selected' : ''}`}
+                  className={`settings-avatar-card ${ownCharacter === avatar.id ? 'selected' : ''}`}
                   onClick={() => handleAvatarSelect(avatar.id)}
                 >
                   <img src={avatar.preview} alt={avatar.name} />

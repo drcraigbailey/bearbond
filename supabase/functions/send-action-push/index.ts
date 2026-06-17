@@ -148,7 +148,7 @@ serve(async (req) => {
 
     const { data: profiles, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, character, push_token')
+      .select('id, email, character, display_name, push_token')
       .in('id', [senderId, receiverId]);
 
     if (profileError || !profiles) {
@@ -162,9 +162,10 @@ serve(async (req) => {
       return jsonResponse({ skipped: true, reason: 'Receiver has no push token saved.' });
     }
 
-    const senderName = senderProfile?.character
+    const savedSenderName = String(senderProfile?.display_name || '').trim();
+    const senderName = savedSenderName || (senderProfile?.character
       ? senderProfile.character.charAt(0).toUpperCase() + senderProfile.character.slice(1)
-      : 'Your partner';
+      : 'Your partner');
 
     const cleanEventType = eventType === 'scene'
       ? 'scene'

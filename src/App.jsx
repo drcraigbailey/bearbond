@@ -92,7 +92,8 @@ const profilesAreMeaningfullyDifferent = (currentProfile, nextProfile) => {
   return (
     currentProfile.character !== nextProfile.character ||
     currentProfile.email !== nextProfile.email ||
-    currentProfile.push_updated_at !== nextProfile.push_updated_at
+    currentProfile.push_updated_at !== nextProfile.push_updated_at ||
+    currentProfile.display_name !== nextProfile.display_name
   );
 };
 
@@ -347,6 +348,29 @@ export default function App() {
     );
   };
 
+  const handleDisplayNameChange = async (displayName) => {
+    if (!session?.user?.id) return false;
+
+    const cleanName = String(displayName || '').trim().slice(0, 40);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ display_name: cleanName || null })
+      .eq('id', session.user.id);
+
+    if (error) {
+      console.warn('Could not change display name:', error.message);
+      return false;
+    }
+
+    setProfile((currentProfile) => currentProfile
+      ? { ...currentProfile, display_name: cleanName || null }
+      : currentProfile
+    );
+
+    return true;
+  };
+
   const handleAvatarChange = async (avatarId) => {
     if (!session?.user?.id) return false;
 
@@ -417,6 +441,7 @@ export default function App() {
       onPairReset={handlePairReset}
       onCharacterChange={handleCharacterChange}
       onAvatarChange={handleAvatarChange}
+      onDisplayNameChange={handleDisplayNameChange}
       onLogout={handleLogout}
     />
   );
