@@ -12,6 +12,18 @@ const BEARBOND_NOTIFICATION_CHANNEL = 'bearbond-actions';
 const PENDING_PUSH_EVENT_KEY = 'bearbond.pendingPushEvent';
 const BACKGROUND_MUSIC_SRC = '/music/Summit_Jig.mp3';
 
+const getSceneStorageKey = (pairId, userId) => `bearbond.scene.${pairId}.${userId}`;
+
+const getStoredScene = (pairId, userId) => {
+  if (typeof window === 'undefined' || !pairId || !userId) return null;
+  return window.localStorage.getItem(getSceneStorageKey(pairId, userId));
+};
+
+const saveStoredScene = (pairId, userId, sceneId) => {
+  if (typeof window === 'undefined' || !pairId || !userId || !sceneId) return;
+  window.localStorage.setItem(getSceneStorageKey(pairId, userId), sceneId);
+};
+
 const setupLocalNotifications = async () => {
   try {
     const currentPermission = await LocalNotifications.checkPermissions();
@@ -107,7 +119,7 @@ export default function MainBearScene({
   onAvatarChange,
   onLogout,
 }) {
-  const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
+  const [activeScene, setActiveScene] = useState(() => getStoredScene(pair.id, user.id) || 'home');
   const [scenePickerValue, setScenePickerValue] = useState('');
   const [currentAnimation, setCurrentAnimation] = useState('idle');
   const [toastMessage, setToastMessage] = useState('');
@@ -189,9 +201,9 @@ export default function MainBearScene({
   }, [musicEnabled]);
 
   useEffect(() => {
-    const nextScene = pair.active_scene || pair.last_scene || 'home';
-    if (nextScene && nextScene !== activeScene) setActiveScene(nextScene);
-  }, [pair.active_scene, pair.last_scene, activeScene]);
+    const storedScene = getStoredScene(pair.id, user.id);
+    setActiveScene(storedScene || 'home');
+  }, [pair.id, user.id]);
 
   const handleIncomingAction = async (actionName, { notify = false } = {}) => {
     const partnerName = getPartnerName();
@@ -213,6 +225,7 @@ export default function MainBearScene({
     const sceneNotificationBody = `${partnerName} changed your scene to ${nextSceneData.name}! 🏞️`;
 
     setActiveScene(sceneId);
+    saveStoredScene(pair.id, user.id, sceneId);
     showToast(sceneNotificationBody);
 
     if (!notify) return;
@@ -468,9 +481,6 @@ export default function MainBearScene({
         }
 
         setIsPartnerConnected(!!updatedPair.user_two_id);
-
-        const incomingScene = updatedPair.active_scene || updatedPair.last_scene;
-        if (incomingScene) setActiveScene(incomingScene);
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` },
       () => {
@@ -592,36 +602,20 @@ export default function MainBearScene({
     const now = new Date().toISOString();
 
     setScenePickerValue(newScene);
-    setActiveScene(newScene);
 
     const commandSent = await sendDirectCommand({ commandType: 'scene', commandName: newScene });
     setScenePickerValue('');
 
-    const { error } = await supabase.from('pairs').update({
-      active_scene: newScene,
-      last_scene: newScene,
-      last_scene_from: user.id,
-      last_scene_at: now,
-    }).eq('id', pair.id);
+    if (!commandSent) return;
 
-    if (error) {
-      console.warn('Could not update pair scene:', error.message);
-      showToast(`Scene changed locally, but could not save: ${error.message}`);
-      return;
-    }
+    await sendClosedAppPush({
+      actionName: newScene,
+      eventType: 'scene',
+      notificationLabel: sceneName,
+      eventAt: now,
+    });
 
-    if (commandSent) {
-      await sendClosedAppPush({
-        actionName: newScene,
-        eventType: 'scene',
-        notificationLabel: sceneName,
-        eventAt: now,
-      });
-
-      showToast(`Scene sent to partner: ${sceneName}`);
-    } else {
-      showToast(`Scene changed to ${sceneName}. Partner not notified.`);
-    }
+    showToast(`Scene sent to partner: ${sceneName}`);
   };
 
   const handleAvatarSelect = async (avatarId) => {
