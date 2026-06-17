@@ -8,6 +8,7 @@ import { ACTIONS } from '../data/actions';
 import logoImg from '../assets/bear/main.png';
 
 const BEARBOND_NOTIFICATION_CHANNEL = 'bearbond-actions';
+const PENDING_PUSH_EVENT_KEY = 'bearbond.pendingPushEvent';
 
 const setupLocalNotifications = async () => {
   try {
@@ -112,8 +113,8 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   const [secretTapCount, setSecretTapCount] = useState(0);
   const [remainLoggedIn, setRemainLoggedIn] = useState(getRemainLoggedInPreference());
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const lastSeenActionAtRef = useRef(pair.last_action_at || null);
-  const lastSeenSceneAtRef = useRef(pair.last_scene_at || null);
+  const lastSeenActionAtRef = useRef(null);
+  const lastSeenSceneAtRef = useRef(null);
 
   // If I picked Yogi, display Craig. If I picked Craig, display Yogi.
   const displayCharacter = profile.character === 'yogi' ? 'craig' : 'yogi';
@@ -125,10 +126,35 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
   const getPartnerName = () => displayCharacter.charAt(0).toUpperCase() + displayCharacter.slice(1);
 
-  const handleIncomingAction = async (actionName) => {
+  const getProcessedEventKey = (eventType) => `bearbond.processed.${pair.id}.${user.id}.${eventType}`;
+
+  const getStoredProcessedAt = (eventType) => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(getProcessedEventKey(eventType));
+  };
+
+  const markEventProcessed = (eventType, eventAt) => {
+    if (!eventAt) return;
+
+    if (eventType === 'scene') {
+      lastSeenSceneAtRef.current = eventAt;
+    } else {
+      lastSeenActionAtRef.current = eventAt;
+    }
+
+    try {
+      window.localStorage.setItem(getProcessedEventKey(eventType), eventAt);
+    } catch (_error) {
+      // If local storage is unavailable, the refs still prevent duplicate playback in this session.
+    }
+  };
+
+  const handleIncomingAction = async (actionName, { notify = true } = {}) => {
     const partnerName = getPartnerName();
     setCurrentAnimation(actionName);
     showToast(`${partnerName} sent a ${actionName}!`);
+
+    if (!notify) return;
 
     try {
       await sendLocalActionNotification({ partnerName, actionName });
@@ -137,7 +163,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     }
   };
 
-  const handleIncomingScene = async (sceneId) => {
+  const handleIncomingScene = async (sceneId, { notify = true } = {}) => {
     const nextSceneData = SCENES[sceneId];
     if (!nextSceneData) return;
 
@@ -146,6 +172,8 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
     setActiveScene(sceneId);
     showToast(sceneNotificationBody);
+
+    if (!notify) return;
 
     try {
       await sendLocalActionNotification({
@@ -157,6 +185,113 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       console.log('Could not schedule local scene notification.', error);
     }
   };
+
+  const processIncomingEvent = async ({ eventType, actionName, eventAt, senderId, pairId, notify = true }) => {
+    if (!actionName) return;
+    if (pairId && String(pairId) !== String(pair.id)) return;
+    if (senderId && String(senderId) === String(user.id)) return;
+
+    const cleanEventType = eventType === 'scene' ? 'scene' : 'action';
+    const currentSeenAt = cleanEventType === 'scene'
+      ? lastSeenSceneAtRef.current
+      : lastSeenActionAtRef.current;
+
+    if (eventAt && currentSeenAt === eventAt) return;
+
+    if (eventAt) markEventProcessed(cleanEventType, eventAt);
+
+    if (cleanEventType === 'scene') {
+      await handleIncomingScene(actionName, { notify });
+      return;
+    }
+
+    await handleIncomingAction(actionName, { notify });
+  };
+
+  useEffect(() => {
+    lastSeenActionAtRef.current = getStoredProcessedAt('action');
+    lastSeenSceneAtRef.current = getStoredProcessedAt('scene');
+
+    const replayStoredPairEvents = async () => {
+      if (
+        pair.last_scene &&
+        pair.last_scene_from !== user.id &&
+        pair.last_scene_at &&
+        pair.last_scene_at !== lastSeenSceneAtRef.current
+      ) {
+        await processIncomingEvent({
+          eventType: 'scene',
+          actionName: pair.last_scene,
+          eventAt: pair.last_scene_at,
+          senderId: pair.last_scene_from,
+          pairId: pair.id,
+          notify: false,
+        });
+      }
+
+      if (
+        pair.last_action &&
+        pair.last_action_from !== user.id &&
+        pair.last_action_at &&
+        pair.last_action_at !== lastSeenActionAtRef.current
+      ) {
+        await processIncomingEvent({
+          eventType: 'action',
+          actionName: pair.last_action,
+          eventAt: pair.last_action_at,
+          senderId: pair.last_action_from,
+          pairId: pair.id,
+          notify: false,
+        });
+      }
+    };
+
+    const replayPendingPushEvent = async () => {
+      if (typeof window === 'undefined') return;
+
+      try {
+        const pendingRaw = window.localStorage.getItem(PENDING_PUSH_EVENT_KEY);
+        if (!pendingRaw) return;
+
+        const pending = JSON.parse(pendingRaw);
+        if (String(pending.pairId) !== String(pair.id)) return;
+
+        await processIncomingEvent({
+          eventType: pending.eventType,
+          actionName: pending.actionName,
+          eventAt: pending.eventAt || pending.receivedAt,
+          senderId: pending.senderId,
+          pairId: pending.pairId,
+          notify: false,
+        });
+
+        window.localStorage.removeItem(PENDING_PUSH_EVENT_KEY);
+      } catch (error) {
+        console.warn('Could not replay pending push event:', error);
+      }
+    };
+
+    replayStoredPairEvents();
+    replayPendingPushEvent();
+  }, [pair.id, pair.last_action_at, pair.last_scene_at, user.id, displayCharacter]);
+
+  useEffect(() => {
+    const handlePushEvent = (event) => {
+      const detail = event.detail || {};
+
+      processIncomingEvent({
+        eventType: detail.eventType,
+        actionName: detail.actionName,
+        eventAt: detail.eventAt || detail.receivedAt,
+        senderId: detail.senderId,
+        pairId: detail.pairId,
+        notify: false,
+      });
+    };
+
+    window.addEventListener('bearbond-push-event', handlePushEvent);
+    return () => window.removeEventListener('bearbond-push-event', handlePushEvent);
+  }, [pair.id, user.id, displayCharacter]);
 
   useEffect(() => {
     setupLocalNotifications();
@@ -174,25 +309,23 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
         setIsPartnerConnected(!!updatedPair.user_two_id);
 
-        if (
-          updatedPair.last_action &&
-          updatedPair.last_action_from !== user.id &&
-          updatedPair.last_action_at &&
-          updatedPair.last_action_at !== lastSeenActionAtRef.current
-        ) {
-          lastSeenActionAtRef.current = updatedPair.last_action_at;
-          await handleIncomingAction(updatedPair.last_action);
-        }
+        await processIncomingEvent({
+          eventType: 'action',
+          actionName: updatedPair.last_action,
+          eventAt: updatedPair.last_action_at,
+          senderId: updatedPair.last_action_from,
+          pairId: updatedPair.id,
+          notify: true,
+        });
 
-        if (
-          updatedPair.last_scene &&
-          updatedPair.last_scene_from !== user.id &&
-          updatedPair.last_scene_at &&
-          updatedPair.last_scene_at !== lastSeenSceneAtRef.current
-        ) {
-          lastSeenSceneAtRef.current = updatedPair.last_scene_at;
-          await handleIncomingScene(updatedPair.last_scene);
-        }
+        await processIncomingEvent({
+          eventType: 'scene',
+          actionName: updatedPair.last_scene,
+          eventAt: updatedPair.last_scene_at,
+          senderId: updatedPair.last_scene_from,
+          pairId: updatedPair.id,
+          notify: true,
+        });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` }, 
       () => {
@@ -212,7 +345,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     return () => clearTimeout(resetTapTimer);
   }, [secretTapCount]);
 
-  const sendClosedAppPush = async ({ actionName, eventType = 'action', notificationLabel }) => {
+  const sendClosedAppPush = async ({ actionName, eventType = 'action', notificationLabel, eventAt }) => {
     try {
       const { data, error } = await supabase.functions.invoke('send-action-push', {
         body: {
@@ -221,6 +354,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
           actionName,
           eventType,
           notificationLabel,
+          eventAt,
         },
       });
 
@@ -256,7 +390,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   const handleSendAction = async (actionId) => {
     setCurrentAnimation(actionId);
     const now = new Date().toISOString();
-    lastSeenActionAtRef.current = now;
+    markEventProcessed('action', now);
 
     supabase.from('pair_events').insert([{
       pair_id: pair.id,
@@ -278,7 +412,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       return;
     }
 
-    await sendClosedAppPush({ actionName: actionId, eventType: 'action' });
+    await sendClosedAppPush({ actionName: actionId, eventType: 'action', eventAt: now });
   };
 
   const handleChangeScene = async (e) => {
@@ -287,7 +421,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
     const sceneName = SCENES[newScene]?.name || 'Scene';
     const now = new Date().toISOString();
-    lastSeenSceneAtRef.current = now;
+    markEventProcessed('scene', now);
 
     setScenePickerValue(newScene);
 
@@ -317,6 +451,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       actionName: newScene,
       eventType: 'scene',
       notificationLabel: sceneName,
+      eventAt: now,
     });
 
     showToast(`Scene sent to partner: ${sceneName}`);
