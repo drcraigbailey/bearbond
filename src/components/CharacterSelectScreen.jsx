@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { AVATARS } from '../data/avatarSets';
 
-export default function CharacterSelectScreen({ user, onComplete }) {
+export default function CharacterSelectScreen({ user, onComplete, avatars = AVATARS }) {
   const [loading, setLoading] = useState(false);
 
   const selectCharacter = async (charName) => {
@@ -21,7 +21,7 @@ export default function CharacterSelectScreen({ user, onComplete }) {
       <p className="subtitle">Your partner will see this character.</p>
 
       <div className="character-select-grid avatar-select-grid">
-        {AVATARS.map((avatar) => (
+        {avatars.map((avatar) => (
           <button
             type="button"
             key={avatar.id}
