@@ -1,48 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getSpriteAsset } from '../data/avatarSets';
 import '../styles/BearBond.css';
 import '../styles/SpriteFix.css';
-
-// --- YOGI SPRITES (PNGs) ---
-import yogiMain from '../assets/bear/main.png';
-import yogiWave from '../assets/bear/Wave.png'; 
-import yogiKiss from '../assets/bear/kiss.png';
-import yogiHug from '../assets/bear/hug.png'; 
-import yogiHoney from '../assets/bear/honey.png';
-import yogiNight from '../assets/bear/night.png';
-import yogiCheeky from '../assets/bear/cheeky.png';
-import yogiCane from '../assets/bear/cane.png';
-
-// --- CRAIG SPRITES (PNGs) ---
-import craigMain from '../assets/bear/main1.png';
-import craigWave from '../assets/bear/wave1.png'; 
-import craigKiss from '../assets/bear/kiss1.png';
-import craigHug from '../assets/bear/hug1.png'; 
-import craigHoney from '../assets/bear/honey1.png';
-import craigNight from '../assets/bear/night1.png';
-import craigCheeky from '../assets/bear/cheeky1.png';
-import craigCane from '../assets/bear/cane1.png';
-
-const YOGI_MAP = {
-  idle: yogiMain,
-  wave: yogiWave,
-  love: yogiKiss,
-  hug: yogiHug,
-  honey: yogiHoney,
-  sleep: yogiNight,
-  dance: yogiCheeky,
-  celebrate: yogiCane,
-};
-
-const CRAIG_MAP = {
-  idle: craigMain,
-  wave: craigWave,
-  love: craigKiss,
-  hug: craigHug,
-  honey: craigHoney,
-  sleep: craigNight,
-  dance: craigCheeky,
-  celebrate: craigCane,
-};
 
 const FRAME_COUNT = 6;
 const FRAME_DURATION_MS = 140;
@@ -51,6 +10,7 @@ const MAX_SPRITE_BOX = 250;
 const FALLBACK_RATIOS = {
   yogi: 1,
   craig: 0.62,
+  alex: 0.62,
 };
 
 const getFittedFrameSize = (ratio) => {
@@ -72,13 +32,16 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
   const [frameRatio, setFrameRatio] = useState(FALLBACK_RATIOS[character] || 1);
   const onAnimationCompleteRef = useRef(onAnimationComplete);
 
-  const SPRITE_MAP = character === 'craig' ? CRAIG_MAP : YOGI_MAP;
-  const currentSpriteSrc = SPRITE_MAP[currentAnimation] || SPRITE_MAP.idle;
+  const currentSpriteSrc = getSpriteAsset(character, currentAnimation);
   const isIdle = currentAnimation === 'idle';
 
   useEffect(() => {
     onAnimationCompleteRef.current = onAnimationComplete;
   }, [onAnimationComplete]);
+
+  useEffect(() => {
+    setFrameRatio(FALLBACK_RATIOS[character] || 1);
+  }, [character]);
 
   useEffect(() => {
     setFrame(0);
@@ -126,7 +89,7 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
   const spriteStateClass = isIdle ? 'idle-sprite-wrapper' : 'action-sprite-wrapper';
 
   return (
-    <div className={`bear-sprite-wrapper ${character === 'craig' ? 'craig-sprite-wrapper' : ''} ${spriteStateClass}`}>
+    <div className={`bear-sprite-wrapper ${character === 'craig' ? 'craig-sprite-wrapper' : ''} ${character === 'alex' ? 'alex-sprite-wrapper' : ''} ${spriteStateClass}`}>
       <div
         className="bear-frame-viewport"
         style={{
