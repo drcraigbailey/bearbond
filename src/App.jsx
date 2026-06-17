@@ -46,10 +46,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (session?.user?.id && profile?.id) {
       registerPushNotifications(session.user.id);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, profile?.id]);
 
   const fetchProfileAndPair = async (userId, email) => {
     // 1. Get user profile (or create one)
