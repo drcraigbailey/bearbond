@@ -26,4 +26,5 @@ export const SCENES = {
   bed: { id: 'bed', name: 'Night Bedroom', image: getSceneImage('backdrop-bed.png') },
   town: { id: 'town', name: 'Rainy Town', image: getSceneImage('backdrop-town.png') },
   mway: { id: 'mway', name: 'Motorway', image: getSceneImage('backdrop-mway.png') },
+  romania: { id: 'romania', name: 'Romania', image: getSceneImage('backdrop-romania.png') },
 };
