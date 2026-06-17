@@ -218,7 +218,15 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     setConfirmDialog(null);
     setSettingsOpen(false);
 
-    await supabase.from('pair_events').delete().eq('pair_id', pair.id);
+    const { error: eventDeleteError } = await supabase
+      .from('pair_events')
+      .delete()
+      .eq('pair_id', pair.id);
+
+    if (eventDeleteError) {
+      showToast(`Could not clear pair actions: ${eventDeleteError.message}`);
+      return;
+    }
 
     const resetPayload = {
       user_two_id: null,
