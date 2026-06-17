@@ -50,28 +50,24 @@ const showForegroundPushNotification = async (notification) => {
 const savePushToken = async ({ userId, token }) => {
   if (!userId || !token) return false;
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({
-      push_token: token,
-      push_platform: Capacitor.getPlatform(),
-      push_updated_at: new Date().toISOString(),
-    })
-    .eq('id', userId)
-    .select('id')
-    .maybeSingle();
+  const { data, error } = await supabase.functions.invoke('save-push-token', {
+    body: {
+      token,
+      platform: Capacitor.getPlatform(),
+    },
+  });
 
   if (error) {
-    console.warn('Could not save push token:', error.message);
+    console.warn('Could not save push registration:', error.message || error);
     return false;
   }
 
-  if (!data?.id) {
-    console.warn('Could not save push token: profile row was not found yet.');
+  if (!data?.saved) {
+    console.warn('Push registration was not saved:', data);
     return false;
   }
 
-  console.log('BearBond push token saved for user:', userId);
+  console.log('BearBond push registration saved for user:', userId);
   return true;
 };
 
@@ -84,7 +80,8 @@ export const registerPushNotifications = async (userId) => {
     await PushNotifications.removeAllListeners();
 
     await PushNotifications.addListener('registration', async (token) => {
-      await savePushToken({ userId, token: token.value });
+      const saved = await savePushToken({ userId, token: token.value });
+      console.log(saved ? 'BearBond push registration complete.' : 'BearBond push registration not saved.');
     });
 
     await PushNotifications.addListener('registrationError', (error) => {
