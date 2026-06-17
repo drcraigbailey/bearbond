@@ -1,7 +1,17 @@
-const bearAssets = import.meta.glob(['../assets/bear/*.png', '../assets/bear/**/*.png'], {
+const rootBearAssets = import.meta.glob('../assets/bear/*.png', {
   eager: true,
   import: 'default',
 });
+
+const nestedBearAssets = import.meta.glob('../assets/bear/**/*.png', {
+  eager: true,
+  import: 'default',
+});
+
+const bearAssets = {
+  ...rootBearAssets,
+  ...nestedBearAssets,
+};
 
 const normalisePath = (path) => path.replace(/\\/g, '/').toLowerCase();
 
