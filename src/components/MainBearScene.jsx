@@ -54,7 +54,7 @@ const sendLocalActionNotification = async ({ partnerName, actionName, notificati
   });
 };
 
-export default function MainBearScene({ user, pair, profile, onPairReset, onCharacterChange }) {
+export default function MainBearScene({ user, pair, profile, onPairReset, onCharacterChange, onLogout }) {
   const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
   const [scenePickerValue, setScenePickerValue] = useState('');
   const [currentAnimation, setCurrentAnimation] = useState('idle');
@@ -258,6 +258,11 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
   const handleLogout = async () => {
     setSettingsOpen(false);
+    if (onLogout) {
+      await onLogout();
+      return;
+    }
+
     await supabase.auth.signOut();
   };
 
