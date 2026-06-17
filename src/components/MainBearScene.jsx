@@ -50,8 +50,8 @@ const sendLocalActionNotification = async ({ partnerName, actionName, notificati
         id: Math.floor(Date.now() % 2147483647),
         channelId: BEARBOND_NOTIFICATION_CHANNEL,
         autoCancel: true,
-      }
-    ]
+      },
+    ],
   });
 };
 
@@ -62,19 +62,11 @@ const trimPushError = (message) => {
 
 const describeFunctionPayload = (payload) => {
   if (!payload) return '';
-
-  if (payload.details?.error?.message) {
-    return `${payload.error || 'Firebase error'}: ${payload.details.error.message}`;
-  }
-
-  if (payload.details?.message) {
-    return `${payload.error || 'Firebase error'}: ${payload.details.message}`;
-  }
-
+  if (payload.details?.error?.message) return `${payload.error || 'Firebase error'}: ${payload.details.error.message}`;
+  if (payload.details?.message) return `${payload.error || 'Firebase error'}: ${payload.details.message}`;
   if (payload.error) return payload.error;
   if (payload.reason) return payload.reason;
   if (payload.message) return payload.message;
-
   return '';
 };
 
@@ -96,7 +88,7 @@ const getEdgeFunctionErrorMessage = async (error) => {
       }
     }
   } catch (_readError) {
-    // Fall back to the generic error below.
+    // Fall through to generic message.
   }
 
   return trimPushError(error?.message || 'Function error');
@@ -113,11 +105,13 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   const [secretTapCount, setSecretTapCount] = useState(0);
   const [remainLoggedIn, setRemainLoggedIn] = useState(getRemainLoggedInPreference());
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const lastSeenActionAtRef = useRef(null);
-  const lastSeenSceneAtRef = useRef(null);
+  const commandPollRunningRef = useRef(false);
+  const commandTableWarningShownRef = useRef(false);
+  const processedCommandIdsRef = useRef(new Set());
 
   // If I picked Yogi, display Craig. If I picked Craig, display Yogi.
   const displayCharacter = profile.character === 'yogi' ? 'craig' : 'yogi';
+  const receiverId = pair.user_one_id === user.id ? pair.user_two_id : pair.user_one_id;
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -126,30 +120,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
   const getPartnerName = () => displayCharacter.charAt(0).toUpperCase() + displayCharacter.slice(1);
 
-  const getProcessedEventKey = (eventType) => `bearbond.processed.${pair.id}.${user.id}.${eventType}`;
-
-  const getStoredProcessedAt = (eventType) => {
-    if (typeof window === 'undefined') return null;
-    return window.localStorage.getItem(getProcessedEventKey(eventType));
-  };
-
-  const markEventProcessed = (eventType, eventAt) => {
-    if (!eventAt) return;
-
-    if (eventType === 'scene') {
-      lastSeenSceneAtRef.current = eventAt;
-    } else {
-      lastSeenActionAtRef.current = eventAt;
-    }
-
-    try {
-      window.localStorage.setItem(getProcessedEventKey(eventType), eventAt);
-    } catch (_error) {
-      // If local storage is unavailable, the refs still prevent duplicate playback in this session.
-    }
-  };
-
-  const handleIncomingAction = async (actionName, { notify = true } = {}) => {
+  const handleIncomingAction = async (actionName, { notify = false } = {}) => {
     const partnerName = getPartnerName();
     setCurrentAnimation(actionName);
     showToast(`${partnerName} sent a ${actionName}!`);
@@ -159,11 +130,11 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     try {
       await sendLocalActionNotification({ partnerName, actionName });
     } catch (error) {
-      console.log('Could not schedule local notification.', error);
+      console.log('Could not schedule local action notification.', error);
     }
   };
 
-  const handleIncomingScene = async (sceneId, { notify = true } = {}) => {
+  const handleIncomingScene = async (sceneId, { notify = false } = {}) => {
     const nextSceneData = SCENES[sceneId];
     if (!nextSceneData) return;
 
@@ -186,66 +157,84 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     }
   };
 
-  const processIncomingEvent = async ({ eventType, actionName, eventAt, senderId, pairId, notify = true }) => {
-    if (!actionName) return;
-    if (pairId && String(pairId) !== String(pair.id)) return;
-    if (senderId && String(senderId) === String(user.id)) return;
+  const applyIncomingCommand = async (command, { markHandled = true, notify = false } = {}) => {
+    if (!command?.command_name) return;
+    if (command.sender_id && String(command.sender_id) === String(user.id)) return;
+    if (command.pair_id && String(command.pair_id) !== String(pair.id)) return;
+    if (command.id && processedCommandIdsRef.current.has(command.id)) return;
 
-    const cleanEventType = eventType === 'scene' ? 'scene' : 'action';
-    const currentSeenAt = cleanEventType === 'scene'
-      ? lastSeenSceneAtRef.current
-      : lastSeenActionAtRef.current;
+    if (command.id) processedCommandIdsRef.current.add(command.id);
 
-    if (eventAt && currentSeenAt === eventAt) return;
+    if (command.command_type === 'scene') {
+      await handleIncomingScene(command.command_name, { notify });
+    } else {
+      await handleIncomingAction(command.command_name, { notify });
+    }
 
-    if (eventAt) markEventProcessed(cleanEventType, eventAt);
+    if (markHandled && command.id) {
+      const { error } = await supabase
+        .from('pair_commands')
+        .update({ handled_at: new Date().toISOString() })
+        .eq('id', command.id)
+        .eq('receiver_id', user.id);
 
-    if (cleanEventType === 'scene') {
-      await handleIncomingScene(actionName, { notify });
+      if (error) console.warn('Could not mark command handled:', error.message);
+    }
+  };
+
+  const pollCommandInbox = async () => {
+    if (!pair?.id || !user?.id || commandPollRunningRef.current) return;
+
+    commandPollRunningRef.current = true;
+
+    const { data, error } = await supabase
+      .from('pair_commands')
+      .select('*')
+      .eq('pair_id', pair.id)
+      .eq('receiver_id', user.id)
+      .is('handled_at', null)
+      .order('created_at', { ascending: true })
+      .limit(15);
+
+    commandPollRunningRef.current = false;
+
+    if (error) {
+      console.warn('Could not poll command inbox:', error.message);
+      if (!commandTableWarningShownRef.current) {
+        commandTableWarningShownRef.current = true;
+        showToast(`Command inbox missing or blocked: ${error.message}`);
+      }
       return;
     }
 
-    await handleIncomingAction(actionName, { notify });
+    commandTableWarningShownRef.current = false;
+
+    for (const command of data || []) {
+      await applyIncomingCommand(command, { markHandled: true, notify: false });
+    }
   };
 
   useEffect(() => {
-    lastSeenActionAtRef.current = getStoredProcessedAt('action');
-    lastSeenSceneAtRef.current = getStoredProcessedAt('scene');
+    setupLocalNotifications();
+    pollCommandInbox();
 
-    const replayStoredPairEvents = async () => {
-      if (
-        pair.last_scene &&
-        pair.last_scene_from !== user.id &&
-        pair.last_scene_at &&
-        pair.last_scene_at !== lastSeenSceneAtRef.current
-      ) {
-        await processIncomingEvent({
-          eventType: 'scene',
-          actionName: pair.last_scene,
-          eventAt: pair.last_scene_at,
-          senderId: pair.last_scene_from,
-          pairId: pair.id,
-          notify: false,
-        });
-      }
+    const pollTimer = window.setInterval(pollCommandInbox, 1500);
 
-      if (
-        pair.last_action &&
-        pair.last_action_from !== user.id &&
-        pair.last_action_at &&
-        pair.last_action_at !== lastSeenActionAtRef.current
-      ) {
-        await processIncomingEvent({
-          eventType: 'action',
-          actionName: pair.last_action,
-          eventAt: pair.last_action_at,
-          senderId: pair.last_action_from,
-          pairId: pair.id,
-          notify: false,
-        });
-      }
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') pollCommandInbox();
     };
 
+    window.addEventListener('focus', pollCommandInbox);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    return () => {
+      window.clearInterval(pollTimer);
+      window.removeEventListener('focus', pollCommandInbox);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
+  }, [pair.id, user.id, displayCharacter]);
+
+  useEffect(() => {
     const replayPendingPushEvent = async () => {
       if (typeof window === 'undefined') return;
 
@@ -255,15 +244,16 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
         const pending = JSON.parse(pendingRaw);
         if (String(pending.pairId) !== String(pair.id)) return;
+        if (String(pending.senderId) === String(user.id)) return;
 
-        await processIncomingEvent({
-          eventType: pending.eventType,
-          actionName: pending.actionName,
-          eventAt: pending.eventAt || pending.receivedAt,
-          senderId: pending.senderId,
-          pairId: pending.pairId,
-          notify: false,
-        });
+        await applyIncomingCommand({
+          id: `push-${pending.eventAt || pending.receivedAt || Date.now()}`,
+          pair_id: pending.pairId,
+          sender_id: pending.senderId,
+          receiver_id: user.id,
+          command_type: pending.eventType === 'scene' ? 'scene' : 'action',
+          command_name: pending.actionName,
+        }, { markHandled: false, notify: false });
 
         window.localStorage.removeItem(PENDING_PUSH_EVENT_KEY);
       } catch (error) {
@@ -271,22 +261,23 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       }
     };
 
-    replayStoredPairEvents();
     replayPendingPushEvent();
-  }, [pair.id, pair.last_action_at, pair.last_scene_at, user.id, displayCharacter]);
+  }, [pair.id, user.id, displayCharacter]);
 
   useEffect(() => {
     const handlePushEvent = (event) => {
       const detail = event.detail || {};
+      if (String(detail.pairId) !== String(pair.id)) return;
+      if (String(detail.senderId) === String(user.id)) return;
 
-      processIncomingEvent({
-        eventType: detail.eventType,
-        actionName: detail.actionName,
-        eventAt: detail.eventAt || detail.receivedAt,
-        senderId: detail.senderId,
-        pairId: detail.pairId,
-        notify: false,
-      });
+      applyIncomingCommand({
+        id: `push-${detail.eventAt || detail.receivedAt || Date.now()}`,
+        pair_id: detail.pairId,
+        sender_id: detail.senderId,
+        receiver_id: user.id,
+        command_type: detail.eventType === 'scene' ? 'scene' : 'action',
+        command_name: detail.actionName,
+      }, { markHandled: false, notify: false });
     };
 
     window.addEventListener('bearbond-push-event', handlePushEvent);
@@ -294,11 +285,9 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   }, [pair.id, user.id, displayCharacter]);
 
   useEffect(() => {
-    setupLocalNotifications();
-
     const pairSub = supabase.channel(`pair_updates_${pair.id}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` }, 
-      async (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` },
+      (payload) => {
         const updatedPair = payload.new;
 
         if (updatedPair.user_one_id !== user.id && updatedPair.user_two_id !== user.id) {
@@ -308,26 +297,8 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
         }
 
         setIsPartnerConnected(!!updatedPair.user_two_id);
-
-        await processIncomingEvent({
-          eventType: 'action',
-          actionName: updatedPair.last_action,
-          eventAt: updatedPair.last_action_at,
-          senderId: updatedPair.last_action_from,
-          pairId: updatedPair.id,
-          notify: true,
-        });
-
-        await processIncomingEvent({
-          eventType: 'scene',
-          actionName: updatedPair.last_scene,
-          eventAt: updatedPair.last_scene_at,
-          senderId: updatedPair.last_scene_from,
-          pairId: updatedPair.id,
-          notify: true,
-        });
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` }, 
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` },
       () => {
         showToast('Pairing was reset.');
         if (onPairReset) onPairReset();
@@ -336,7 +307,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     return () => {
       supabase.removeChannel(pairSub);
     };
-  }, [pair.id, user.id, displayCharacter, onPairReset]);
+  }, [pair.id, user.id, onPairReset]);
 
   useEffect(() => {
     if (!secretTapCount) return undefined;
@@ -387,30 +358,43 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     }
   };
 
+  const sendDirectCommand = async ({ commandType, commandName }) => {
+    if (!receiverId) {
+      showToast('No connected partner to send to.');
+      return false;
+    }
+
+    const { error } = await supabase.from('pair_commands').insert([{
+      pair_id: pair.id,
+      sender_id: user.id,
+      receiver_id: receiverId,
+      command_type: commandType,
+      command_name: commandName,
+    }]);
+
+    if (error) {
+      console.warn('Could not send direct command:', error.message);
+      showToast(`Command failed: ${error.message}`);
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSendAction = async (actionId) => {
     setCurrentAnimation(actionId);
     const now = new Date().toISOString();
-    markEventProcessed('action', now);
 
-    supabase.from('pair_events').insert([{
-      pair_id: pair.id,
-      sender_id: user.id,
-      event_type: 'action',
-      action_name: actionId
-    }]).then(({ error }) => {
-      if (error) console.warn('Could not save action event:', error.message);
-    });
+    const commandSent = await sendDirectCommand({ commandType: 'action', commandName: actionId });
+    if (!commandSent) return;
 
-    const { error } = await supabase.from('pairs').update({
+    supabase.from('pairs').update({
       last_action: actionId,
       last_action_from: user.id,
-      last_action_at: now
-    }).eq('id', pair.id);
-
-    if (error) {
-      showToast(`Could not send action: ${error.message}`);
-      return;
-    }
+      last_action_at: now,
+    }).eq('id', pair.id).then(({ error }) => {
+      if (error) console.warn('Could not update pair last action:', error.message);
+    });
 
     await sendClosedAppPush({ actionName: actionId, eventType: 'action', eventAt: now });
   };
@@ -421,31 +405,22 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
     const sceneName = SCENES[newScene]?.name || 'Scene';
     const now = new Date().toISOString();
-    markEventProcessed('scene', now);
 
     setScenePickerValue(newScene);
 
-    supabase.from('pair_events').insert([{
-      pair_id: pair.id,
-      sender_id: user.id,
-      event_type: 'scene',
-      action_name: newScene,
-    }]).then(({ error }) => {
-      if (error) console.warn('Could not save scene event:', error.message);
-    });
-
-    const { error } = await supabase.from('pairs').update({
-      last_scene: newScene,
-      last_scene_from: user.id,
-      last_scene_at: now,
-    }).eq('id', pair.id);
+    const commandSent = await sendDirectCommand({ commandType: 'scene', commandName: newScene });
 
     setScenePickerValue('');
 
-    if (error) {
-      showToast(`Could not send scene: ${error.message}`);
-      return;
-    }
+    if (!commandSent) return;
+
+    supabase.from('pairs').update({
+      last_scene: newScene,
+      last_scene_from: user.id,
+      last_scene_at: now,
+    }).eq('id', pair.id).then(({ error }) => {
+      if (error) console.warn('Could not update pair last scene:', error.message);
+    });
 
     await sendClosedAppPush({
       actionName: newScene,
@@ -505,15 +480,8 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     setConfirmDialog(null);
     setSettingsOpen(false);
 
-    const { error: eventDeleteError } = await supabase
-      .from('pair_events')
-      .delete()
-      .eq('pair_id', pair.id);
-
-    if (eventDeleteError) {
-      showToast(`Could not clear pair actions: ${eventDeleteError.message}`);
-      return;
-    }
+    await supabase.from('pair_commands').delete().eq('pair_id', pair.id);
+    await supabase.from('pair_events').delete().eq('pair_id', pair.id);
 
     const resetPayload = {
       user_two_id: null,
@@ -552,7 +520,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     await confirmDialog.onConfirm();
   };
 
-  const currentSceneData = SCENES[activeScene] || SCENES['home'];
+  const currentSceneData = SCENES[activeScene] || SCENES.home;
 
   return (
     <div className="main-scene" style={{ backgroundImage: `url(${currentSceneData.image})` }}>
