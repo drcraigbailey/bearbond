@@ -91,6 +91,14 @@ export default function App() {
     );
   };
 
+  const handleLogout = async () => {
+    setLoading(false);
+    setSession(null);
+    setProfile(null);
+    setPair(null);
+    await supabase.auth.signOut();
+  };
+
   if (loading) return <div className="loading-screen">Loading BearBond...</div>;
 
   if (!session) return <AuthScreen />;
@@ -115,6 +123,7 @@ export default function App() {
       profile={profile}
       onPairReset={handlePairReset}
       onCharacterChange={handleCharacterChange}
+      onLogout={handleLogout}
     />
   );
 }
