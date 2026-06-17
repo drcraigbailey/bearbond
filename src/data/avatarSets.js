@@ -1,78 +1,54 @@
-import yogiMain from '../assets/bear/main.png';
-import yogiWave from '../assets/bear/Wave.png';
-import yogiKiss from '../assets/bear/kiss.png';
-import yogiHug from '../assets/bear/hug.png';
-import yogiHoney from '../assets/bear/honey.png';
-import yogiNight from '../assets/bear/night.png';
-import yogiCheeky from '../assets/bear/cheeky.png';
-import yogiCane from '../assets/bear/cane.png';
+const bearAssets = import.meta.glob('../assets/bear/*.png', {
+  eager: true,
+  import: 'default',
+});
 
-import craigMain from '../assets/bear/main1.png';
-import craigWave from '../assets/bear/wave1.png';
-import craigKiss from '../assets/bear/kiss1.png';
-import craigHug from '../assets/bear/hug1.png';
-import craigHoney from '../assets/bear/honey1.png';
-import craigNight from '../assets/bear/night1.png';
-import craigCheeky from '../assets/bear/cheeky1.png';
-import craigCane from '../assets/bear/cane1.png';
+const getAssetByFileName = (fileName) => {
+  const match = Object.entries(bearAssets).find(([path]) => path.endsWith(`/${fileName}`));
+  return match?.[1] || null;
+};
 
-import alexMain from '../assets/bear/main3.png';
-import alexWave from '../assets/bear/wave3.png';
-import alexKiss from '../assets/bear/kiss3.png';
-import alexHug from '../assets/bear/hug3.png';
-import alexHoney from '../assets/bear/honey3.png';
-import alexNight from '../assets/bear/night3.png';
-import alexCheeky from '../assets/bear/cheeky3.png';
-import alexCane from '../assets/bear/cane3.png';
+const getFirstAsset = (...fileNames) => {
+  for (const fileName of fileNames) {
+    const asset = getAssetByFileName(fileName);
+    if (asset) return asset;
+  }
+
+  return getAssetByFileName('main.png');
+};
+
+const makeBuiltInSpriteSet = (suffix = '') => ({
+  idle: getFirstAsset(`main${suffix}.png`, 'main.png'),
+  wave: getFirstAsset(`wave${suffix}.png`, `Wave${suffix}.png`, 'Wave.png', 'wave.png', 'main.png'),
+  love: getFirstAsset(`kiss${suffix}.png`, 'kiss.png', 'main.png'),
+  hug: getFirstAsset(`hug${suffix}.png`, 'hug.png', 'main.png'),
+  honey: getFirstAsset(`honey${suffix}.png`, 'honey.png', 'main.png'),
+  sleep: getFirstAsset(`night${suffix}.png`, 'night.png', 'main.png'),
+  dance: getFirstAsset(`cheeky${suffix}.png`, 'cheeky.png', 'main.png'),
+  celebrate: getFirstAsset(`cane${suffix}.png`, 'cane.png', 'main.png'),
+});
 
 export const AVATAR_SPRITES = {
-  yogi: {
-    idle: yogiMain,
-    wave: yogiWave,
-    love: yogiKiss,
-    hug: yogiHug,
-    honey: yogiHoney,
-    sleep: yogiNight,
-    dance: yogiCheeky,
-    celebrate: yogiCane,
-  },
-  craig: {
-    idle: craigMain,
-    wave: craigWave,
-    love: craigKiss,
-    hug: craigHug,
-    honey: craigHoney,
-    sleep: craigNight,
-    dance: craigCheeky,
-    celebrate: craigCane,
-  },
-  alex: {
-    idle: alexMain,
-    wave: alexWave,
-    love: alexKiss,
-    hug: alexHug,
-    honey: alexHoney,
-    sleep: alexNight,
-    dance: alexCheeky,
-    celebrate: alexCane,
-  },
+  yogi: makeBuiltInSpriteSet(''),
+  craig: makeBuiltInSpriteSet('1'),
+  alex: makeBuiltInSpriteSet('3'),
 };
 
 export const AVATARS = [
   {
     id: 'yogi',
     name: 'Yogi',
-    preview: yogiMain,
+    preview: AVATAR_SPRITES.yogi.idle,
   },
   {
     id: 'craig',
     name: 'Craig',
-    preview: craigMain,
+    preview: AVATAR_SPRITES.craig.idle,
   },
   {
     id: 'alex',
     name: 'Alex',
-    preview: alexMain,
+    preview: AVATAR_SPRITES.alex.idle,
   },
 ];
 
@@ -81,11 +57,64 @@ export const AVATAR_BY_ID = AVATARS.reduce((avatars, avatar) => ({
   [avatar.id]: avatar,
 }), {});
 
-export const getAvatarName = (avatarId) => AVATAR_BY_ID[avatarId]?.name || 'Yogi';
+export const getAvatarName = (avatarId, avatars = AVATARS) => (
+  avatars.find((avatar) => avatar.id === avatarId)?.name || AVATAR_BY_ID[avatarId]?.name || 'Yogi'
+);
 
-export const getAvatarPreview = (avatarId) => AVATAR_BY_ID[avatarId]?.preview || AVATARS[0].preview;
+export const getAvatarPreview = (avatarId, avatars = AVATARS) => (
+  avatars.find((avatar) => avatar.id === avatarId)?.preview || AVATAR_BY_ID[avatarId]?.preview || AVATARS[0].preview
+);
 
-export const getSpriteAsset = (avatarId = 'yogi', animation = 'idle') => {
-  const spriteSet = AVATAR_SPRITES[avatarId] || AVATAR_SPRITES.yogi;
+export const getSpriteAsset = (avatarId = 'yogi', animation = 'idle', avatarSprites = AVATAR_SPRITES) => {
+  const spriteSet = avatarSprites[avatarId] || AVATAR_SPRITES[avatarId] || AVATAR_SPRITES.yogi;
   return spriteSet[animation] || spriteSet.idle || AVATAR_SPRITES.yogi.idle;
+};
+
+export const mergeAvatarAssets = (remoteAvatars = []) => {
+  const cleanedRemoteAvatars = (remoteAvatars || [])
+    .filter((avatar) => avatar?.id && avatar?.name)
+    .map((avatar) => {
+      const preview = avatar.preview_url || avatar.idle_url || getAvatarPreview(avatar.id);
+
+      return {
+        id: avatar.id,
+        name: avatar.name,
+        preview,
+        isRemote: true,
+      };
+    });
+
+  const mergedAvatarsById = new Map();
+
+  for (const avatar of AVATARS) {
+    mergedAvatarsById.set(avatar.id, avatar);
+  }
+
+  for (const avatar of cleanedRemoteAvatars) {
+    mergedAvatarsById.set(avatar.id, avatar);
+  }
+
+  const mergedSprites = { ...AVATAR_SPRITES };
+
+  for (const avatar of remoteAvatars || []) {
+    if (!avatar?.id) continue;
+
+    const builtInFallback = AVATAR_SPRITES[avatar.id] || AVATAR_SPRITES.yogi;
+
+    mergedSprites[avatar.id] = {
+      idle: avatar.idle_url || avatar.preview_url || builtInFallback.idle,
+      wave: avatar.wave_url || builtInFallback.wave,
+      love: avatar.love_url || avatar.kiss_url || builtInFallback.love,
+      hug: avatar.hug_url || builtInFallback.hug,
+      honey: avatar.honey_url || builtInFallback.honey,
+      sleep: avatar.sleep_url || avatar.night_url || builtInFallback.sleep,
+      dance: avatar.dance_url || avatar.cheeky_url || builtInFallback.dance,
+      celebrate: avatar.celebrate_url || avatar.cane_url || builtInFallback.celebrate,
+    };
+  }
+
+  return {
+    avatars: Array.from(mergedAvatarsById.values()),
+    avatarSprites: mergedSprites,
+  };
 };
