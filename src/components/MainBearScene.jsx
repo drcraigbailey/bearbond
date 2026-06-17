@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase, getRemainLoggedInPreference, setRemainLoggedInPreference } from '../lib/supabaseClient';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { App as CapacitorApp } from '@capacitor/app';
 import BearSprite from './BearSprite';
 import AdminPanel from './AdminPanel';
 import { SCENES as DEFAULT_SCENES } from '../data/scenes';
@@ -169,6 +170,7 @@ export default function MainBearScene({
   const chatEndRef = useRef(null);
   const musicRef = useRef(null);
   const actionSoundRef = useRef(null);
+  const musicEnabledRef = useRef(musicEnabled);
   const soundsEnabledRef = useRef(soundsEnabled);
 
   const availableScenes = scenes && Object.keys(scenes).length ? scenes : DEFAULT_SCENES;
@@ -259,8 +261,56 @@ export default function MainBearScene({
   };
 
   useEffect(() => {
+    musicEnabledRef.current = musicEnabled;
+  }, [musicEnabled]);
+
+  useEffect(() => {
     soundsEnabledRef.current = soundsEnabled;
   }, [soundsEnabled]);
+
+  useEffect(() => {
+    let pauseHandle;
+    let resumeHandle;
+
+    const pauseMusicForBackground = () => {
+      musicRef.current?.pause();
+    };
+
+    const resumeMusicIfEnabled = () => {
+      if (musicEnabledRef.current) {
+        startMusic();
+      }
+    };
+
+    const setupAppMusicListeners = async () => {
+      try {
+        pauseHandle = await CapacitorApp.addListener('pause', pauseMusicForBackground);
+        resumeHandle = await CapacitorApp.addListener('resume', resumeMusicIfEnabled);
+      } catch (error) {
+        console.warn('Could not attach app music listeners:', error);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        pauseMusicForBackground();
+        return;
+      }
+
+      resumeMusicIfEnabled();
+    };
+
+    setupAppMusicListeners();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', pauseMusicForBackground);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', pauseMusicForBackground);
+      pauseHandle?.remove?.();
+      resumeHandle?.remove?.();
+    };
+  }, []);
 
   useEffect(() => {
     const music = musicRef.current;
