@@ -54,7 +54,7 @@ const sendLocalActionNotification = async ({ partnerName, actionName }) => {
   });
 };
 
-export default function MainBearScene({ user, pair, profile, onPairReset }) {
+export default function MainBearScene({ user, pair, profile, onPairReset, onCharacterChange }) {
   const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
   const [currentAnimation, setCurrentAnimation] = useState('idle');
   const [toastMessage, setToastMessage] = useState('');
@@ -198,7 +198,23 @@ export default function MainBearScene({ user, pair, profile, onPairReset }) {
     }
   };
 
-  const performStartAgain = async () => {
+  const performChangeCharacter = async () => {
+    setConfirmDialog(null);
+    setSettingsOpen(false);
+
+    if (onCharacterChange) await onCharacterChange();
+  };
+
+  const handleChangeCharacterClick = () => {
+    setConfirmDialog({
+      title: 'Change Character?',
+      message: 'This keeps your current pairing and sends you back to the character picker.',
+      confirmLabel: 'Choose Character',
+      onConfirm: performChangeCharacter,
+    });
+  };
+
+  const performRepair = async () => {
     setConfirmDialog(null);
     setSettingsOpen(false);
 
@@ -217,19 +233,19 @@ export default function MainBearScene({ user, pair, profile, onPairReset }) {
       : await supabase.from('pairs').update(resetPayload).eq('id', pair.id);
 
     if (error) {
-      showToast(`Could not reset: ${error.message}`);
+      showToast(`Could not re-pair: ${error.message}`);
       return;
     }
 
     if (onPairReset) onPairReset();
   };
 
-  const handleStartAgainClick = () => {
+  const handleRepairClick = () => {
     setConfirmDialog({
-      title: 'Start Again?',
-      message: 'This will leave the current pair, clear your chosen character, and let you choose again before pairing.',
-      confirmLabel: 'Start Again',
-      onConfirm: performStartAgain,
+      title: 'Re-pair Partner?',
+      message: 'This leaves the current pair and sends you back to the pairing screen. Your chosen character stays saved.',
+      confirmLabel: 'Re-pair',
+      onConfirm: performRepair,
     });
   };
 
@@ -287,8 +303,11 @@ export default function MainBearScene({ user, pair, profile, onPairReset }) {
               <span className="setting-toggle-hint">Keep BearBond open after closing the app.</span>
             </span>
           </label>
-          <button onClick={handleStartAgainClick} className="pixel-btn secondary settings-start-over-btn">
-            Start Again / Re-pair
+          <button onClick={handleChangeCharacterClick} className="pixel-btn primary settings-start-over-btn">
+            Change Character
+          </button>
+          <button onClick={handleRepairClick} className="pixel-btn secondary settings-start-over-btn">
+            Re-pair Partner
           </button>
           <button onClick={handleLogout} className="pixel-btn danger settings-logout-btn">
             Log Out
