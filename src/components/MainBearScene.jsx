@@ -289,11 +289,17 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       </div>
 
       <div className="scene-selector-wrapper scene-selector-top">
-        <select value={activeScene} onChange={handleChangeScene} className="pixel-select">
-          {Object.values(SCENES).map(scene => (
-            <option key={scene.id} value={scene.id}>{scene.name}</option>
-          ))}
-        </select>
+        <label className="scene-select-label" htmlFor="scene-select">
+          Scene
+        </label>
+        <div className="scene-select-frame">
+          <select id="scene-select" value={activeScene} onChange={handleChangeScene} className="pixel-select">
+            {Object.values(SCENES).map(scene => (
+              <option key={scene.id} value={scene.id}>{scene.name}</option>
+            ))}
+          </select>
+          <span className="scene-select-arrow" aria-hidden="true">▼</span>
+        </div>
       </div>
 
       {settingsOpen && (
