@@ -33,6 +33,9 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
   const onAnimationCompleteRef = useRef(onAnimationComplete);
 
   const currentSpriteSrc = getSpriteAsset(character, currentAnimation, avatarSprites);
+  const fallbackSpriteSrc = getSpriteAsset('yogi', currentAnimation, avatarSprites);
+  const idleFallbackSpriteSrc = getSpriteAsset('yogi', 'idle', avatarSprites);
+  const [renderedSpriteSrc, setRenderedSpriteSrc] = useState(currentSpriteSrc);
   const isIdle = currentAnimation === 'idle';
 
   useEffect(() => {
@@ -42,6 +45,10 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
   useEffect(() => {
     setFrameRatio(FALLBACK_RATIOS[character] || 1);
   }, [character]);
+
+  useEffect(() => {
+    setRenderedSpriteSrc(currentSpriteSrc);
+  }, [currentSpriteSrc]);
 
   useEffect(() => {
     setFrame(0);
@@ -82,8 +89,23 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
       setFrameRatio(frameWidth / frameHeight);
     };
 
-    image.src = currentSpriteSrc;
-  }, [currentSpriteSrc, isIdle]);
+    image.onerror = () => {
+      setFrameRatio(FALLBACK_RATIOS[character] || 1);
+    };
+
+    image.src = renderedSpriteSrc;
+  }, [renderedSpriteSrc, isIdle, character]);
+
+  const handleSpriteError = () => {
+    if (renderedSpriteSrc !== fallbackSpriteSrc) {
+      setRenderedSpriteSrc(fallbackSpriteSrc);
+      return;
+    }
+
+    if (renderedSpriteSrc !== idleFallbackSpriteSrc) {
+      setRenderedSpriteSrc(idleFallbackSpriteSrc);
+    }
+  };
 
   const frameSize = useMemo(() => getFittedFrameSize(frameRatio || 1), [frameRatio]);
   const spriteStateClass = isIdle ? 'idle-sprite-wrapper' : 'action-sprite-wrapper';
@@ -99,17 +121,19 @@ export default function BearSprite({ currentAnimation, onAnimationComplete, char
       >
         {isIdle ? (
           <img
-            src={currentSpriteSrc}
+            src={renderedSpriteSrc}
             alt=""
             className="bear-sprite-image"
             draggable="false"
+            onError={handleSpriteError}
           />
         ) : (
           <img
-            src={currentSpriteSrc}
+            src={renderedSpriteSrc}
             alt=""
             className="bear-sprite-sheet"
             draggable="false"
+            onError={handleSpriteError}
             style={{
               height: `${frameSize.height}px`,
               transform: `translateX(-${frame * frameSize.width}px)`,
