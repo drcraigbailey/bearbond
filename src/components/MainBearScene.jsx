@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase, getRemainLoggedInPreference, setRemainLoggedInPreference } from '../lib/supabaseClient';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import BearSprite from './BearSprite';
 import AdminPanel from './AdminPanel';
 import { SCENES } from '../data/scenes';
 import { ACTIONS } from '../data/actions';
+import { AVATARS, getAvatarName } from '../data/avatarSets';
 import logoImg from '../assets/bear/main.png';
 
 const BEARBOND_NOTIFICATION_CHANNEL = 'bearbond-actions';
@@ -39,7 +40,6 @@ const setupLocalNotifications = async () => {
 
 const sendLocalActionNotification = async ({ partnerName, actionName, notificationBody }) => {
   const canNotify = await setupLocalNotifications();
-
   if (!canNotify) return;
 
   await LocalNotifications.schedule({
@@ -94,7 +94,15 @@ const getEdgeFunctionErrorMessage = async (error) => {
   return trimPushError(error?.message || 'Function error');
 };
 
-export default function MainBearScene({ user, pair, profile, onPairReset, onCharacterChange, onLogout }) {
+export default function MainBearScene({
+  user,
+  pair,
+  profile,
+  onPairReset,
+  onCharacterChange,
+  onAvatarChange,
+  onLogout,
+}) {
   const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
   const [scenePickerValue, setScenePickerValue] = useState('');
   const [currentAnimation, setCurrentAnimation] = useState('idle');
@@ -116,8 +124,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   const processedCommandIdsRef = useRef(new Set());
   const chatEndRef = useRef(null);
 
-  // If I picked Yogi, display Craig. If I picked Craig, display Yogi.
-  const displayCharacter = profile.character === 'yogi' ? 'craig' : 'yogi';
+  const displayCharacter = profile.character || 'yogi';
   const receiverId = pair.user_one_id === user.id ? pair.user_two_id : pair.user_one_id;
 
   const showToast = (msg) => {
@@ -125,7 +132,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     setTimeout(() => setToastMessage(''), 5000);
   };
 
-  const getPartnerName = () => displayCharacter.charAt(0).toUpperCase() + displayCharacter.slice(1);
+  const getPartnerName = () => getAvatarName(displayCharacter);
 
   const handleIncomingAction = async (actionName, { notify = false } = {}) => {
     const partnerName = getPartnerName();
@@ -445,20 +452,17 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       if (error) {
         const detailedMessage = await getEdgeFunctionErrorMessage(error);
         console.warn('Could not send push notification:', detailedMessage, error);
-        showToast(`Push failed: ${detailedMessage}`);
         return false;
       }
 
       if (data?.skipped) {
         console.warn('Push notification skipped:', data.reason);
-        showToast(`Push skipped: ${data.reason || 'No receiver token'}`);
         return false;
       }
 
       if (data?.error) {
         const dataMessage = describeFunctionPayload(data) || data.error;
-        console.warn('Push notification error:', data);
-        showToast(`Push failed: ${trimPushError(dataMessage)}`);
+        console.warn('Push notification error:', trimPushError(dataMessage));
         return false;
       }
 
@@ -466,7 +470,6 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     } catch (error) {
       const detailedMessage = await getEdgeFunctionErrorMessage(error);
       console.warn('Could not send push notification:', detailedMessage, error);
-      showToast(`Push failed: ${detailedMessage}`);
       return false;
     }
   };
@@ -501,6 +504,8 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     const commandSent = await sendDirectCommand({ commandType: 'action', commandName: actionId });
     if (!commandSent) return;
 
+    showToast('Action sent to partner.');
+
     supabase.from('pairs').update({
       last_action: actionId,
       last_action_from: user.id,
@@ -520,9 +525,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     const now = new Date().toISOString();
 
     setScenePickerValue(newScene);
-
     const commandSent = await sendDirectCommand({ commandType: 'scene', commandName: newScene });
-
     setScenePickerValue('');
 
     if (!commandSent) return;
@@ -543,6 +546,25 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     });
 
     showToast(`Scene sent to partner: ${sceneName}`);
+  };
+
+  const handleAvatarSelect = async (avatarId) => {
+    if (avatarId === displayCharacter) return;
+
+    if (!onAvatarChange) {
+      showToast('Avatar picker is not available.');
+      return;
+    }
+
+    const changed = await onAvatarChange(avatarId);
+
+    if (!changed) {
+      showToast('Could not change avatar.');
+      return;
+    }
+
+    setCurrentAnimation('idle');
+    showToast(`Avatar changed to ${getAvatarName(avatarId)}.`);
   };
 
   const handleRemainLoggedInChange = (e) => {
@@ -576,14 +598,13 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   const performChangeCharacter = async () => {
     setConfirmDialog(null);
     setSettingsOpen(false);
-
     if (onCharacterChange) await onCharacterChange();
   };
 
   const handleChangeCharacterClick = () => {
     setConfirmDialog({
-      title: 'Change Character?',
-      message: 'This keeps your current pairing and sends you back to the character picker.',
+      title: 'Open Avatar Picker?',
+      message: 'This keeps your current pairing and sends you back to the full avatar picker.',
       confirmLabel: 'Choose',
       onConfirm: performChangeCharacter,
     });
@@ -623,7 +644,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   const handleRepairClick = () => {
     setConfirmDialog({
       title: 'Re-pair Partner?',
-      message: 'This leaves the current pair and sends you back to the pairing screen. Your chosen character stays saved.',
+      message: 'This leaves the current pair and sends you back to the pairing screen. Your chosen avatar stays saved.',
       confirmLabel: 'Re-pair',
       onConfirm: performRepair,
     });
@@ -700,8 +721,26 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
               <span className="setting-toggle-hint">Keep BearBond open after closing the app.</span>
             </span>
           </label>
+
+          <div className="settings-avatar-picker">
+            <span className="setting-toggle-label">Avatar</span>
+            <div className="settings-avatar-grid">
+              {AVATARS.map((avatar) => (
+                <button
+                  type="button"
+                  key={avatar.id}
+                  className={`settings-avatar-card ${displayCharacter === avatar.id ? 'selected' : ''}`}
+                  onClick={() => handleAvatarSelect(avatar.id)}
+                >
+                  <img src={avatar.preview} alt={avatar.name} />
+                  <span>{avatar.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <button onClick={handleChangeCharacterClick} className="pixel-btn primary settings-start-over-btn">
-            Change Character
+            Full Avatar Picker
           </button>
           <button onClick={handleRepairClick} className="pixel-btn secondary settings-start-over-btn">
             Re-pair Partner
