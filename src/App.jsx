@@ -44,6 +44,22 @@ const chooseBestPair = (pairs, userId, storedPairId) => {
   return usablePairs[0];
 };
 
+const pairsAreMeaningfullyDifferent = (currentPair, nextPair) => {
+  if (!currentPair?.id || !nextPair?.id) return true;
+
+  return (
+    currentPair.user_one_id !== nextPair.user_one_id ||
+    currentPair.user_two_id !== nextPair.user_two_id ||
+    currentPair.active_scene !== nextPair.active_scene ||
+    currentPair.last_action !== nextPair.last_action ||
+    currentPair.last_action_from !== nextPair.last_action_from ||
+    currentPair.last_action_at !== nextPair.last_action_at ||
+    currentPair.last_scene !== nextPair.last_scene ||
+    currentPair.last_scene_from !== nextPair.last_scene_from ||
+    currentPair.last_scene_at !== nextPair.last_scene_at
+  );
+};
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -86,6 +102,54 @@ export default function App() {
       registerPushNotifications(session.user.id);
     }
   }, [session?.user?.id, profile?.id]);
+
+  useEffect(() => {
+    if (!session?.user?.id || !pair?.id) return undefined;
+
+    let cancelled = false;
+
+    const refreshCurrentPair = async () => {
+      const { data, error } = await supabase
+        .from('pairs')
+        .select('*')
+        .eq('id', pair.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn('Could not refresh pair:', error.message);
+        return;
+      }
+
+      if (!data || (data.user_one_id !== session.user.id && data.user_two_id !== session.user.id)) {
+        clearStoredPairId(session.user.id);
+        setPair(null);
+        return;
+      }
+
+      if (pairsAreMeaningfullyDifferent(pair, data)) {
+        setPair(data);
+      }
+    };
+
+    refreshCurrentPair();
+    const pollTimer = window.setInterval(refreshCurrentPair, 2000);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') refreshCurrentPair();
+    };
+
+    window.addEventListener('focus', refreshCurrentPair);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(pollTimer);
+      window.removeEventListener('focus', refreshCurrentPair);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
+  }, [session?.user?.id, pair?.id, pair?.last_action_at, pair?.last_scene_at, pair?.user_two_id]);
 
   const fetchProfileAndPair = async (userId, email) => {
     setLoading(true);
