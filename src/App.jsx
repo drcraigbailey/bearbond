@@ -26,6 +26,19 @@ const clearStoredPairId = (userId) => {
   window.localStorage.removeItem(getStoredPairKey(userId));
 };
 
+const getPairTimestamp = (item) => {
+  const timestamps = [
+    item?.last_action_at,
+    item?.last_scene_at,
+    item?.updated_at,
+    item?.created_at,
+  ]
+    .map((value) => value ? Date.parse(value) : 0)
+    .filter((value) => Number.isFinite(value));
+
+  return Math.max(0, ...timestamps);
+};
+
 const chooseBestPair = (pairs, userId, storedPairId) => {
   if (!Array.isArray(pairs) || pairs.length === 0) return null;
 
@@ -35,11 +48,16 @@ const chooseBestPair = (pairs, userId, storedPairId) => {
 
   if (usablePairs.length === 0) return null;
 
+  const connectedPairs = usablePairs
+    .filter((item) => item.user_one_id && item.user_two_id)
+    .sort((a, b) => getPairTimestamp(b) - getPairTimestamp(a));
+
+  if (connectedPairs.length > 0) {
+    return connectedPairs[0];
+  }
+
   const storedPair = usablePairs.find((item) => item.id === storedPairId);
   if (storedPair) return storedPair;
-
-  const connectedPair = usablePairs.find((item) => item.user_one_id && item.user_two_id);
-  if (connectedPair) return connectedPair;
 
   return usablePairs[0];
 };
@@ -163,8 +181,7 @@ export default function App() {
     }
     setProfile(prof);
 
-    // 2. Get all visible pair rows and keep the best existing connection.
-    // This avoids being thrown back to pairing if older pair rows exist.
+    // 2. Get all visible pair rows and prefer the most recently active connected one.
     const storedPairId = getStoredPairId(userId);
     const { data: pairRows, error: pairError } = await supabase
       .from('pairs')
