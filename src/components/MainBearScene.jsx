@@ -56,6 +56,7 @@ const sendLocalActionNotification = async ({ partnerName, actionName }) => {
 
 export default function MainBearScene({ user, pair, profile, onPairReset, onCharacterChange }) {
   const [activeScene, setActiveScene] = useState(pair.active_scene || 'home');
+  const [scenePickerValue, setScenePickerValue] = useState('');
   const [currentAnimation, setCurrentAnimation] = useState('idle');
   const [toastMessage, setToastMessage] = useState('');
   const [isPartnerConnected, setIsPartnerConnected] = useState(!!pair.user_two_id);
@@ -71,7 +72,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   useEffect(() => {
     setupLocalNotifications();
 
-    // 1. Subscribe to Room changes (Scene changes & partner joining)
+    // 1. Subscribe to Room changes (partner joining/leaving)
     const pairSub = supabase.channel(`pair_updates_${pair.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` }, 
       (payload) => {
@@ -79,10 +80,6 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
           showToast('Pairing was reset.');
           if (onPairReset) onPairReset();
           return;
-        }
-
-        if (payload.new.active_scene !== activeScene) {
-          setActiveScene(payload.new.active_scene);
         }
 
         setIsPartnerConnected(!!payload.new.user_two_id);
@@ -93,18 +90,32 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
         if (onPairReset) onPairReset();
       }).subscribe();
 
-    // 2. Subscribe to Action Events
+    // 2. Subscribe to Action and Scene Events
     const eventSub = supabase.channel(`pair_events_${pair.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pair_events', filter: `pair_id=eq.${pair.id}` }, 
       async (payload) => {
         const event = payload.new;
         
-        // If the partner sent an action
-        if (event.sender_id !== user.id && event.event_type === 'action') {
+        if (event.sender_id === user.id) return;
+
+        const partnerName = displayCharacter.charAt(0).toUpperCase() + displayCharacter.slice(1);
+
+        if (event.event_type === 'scene') {
+          const nextScene = event.action_name;
+          const nextSceneData = SCENES[nextScene];
+
+          if (nextSceneData) {
+            setActiveScene(nextScene);
+            showToast(`${partnerName} changed your scene to ${nextSceneData.name}!`);
+          }
+
+          return;
+        }
+
+        if (event.event_type === 'action') {
           setCurrentAnimation(event.action_name);
           
           // Show in-app pixel toast
-          const partnerName = displayCharacter.charAt(0).toUpperCase() + displayCharacter.slice(1);
           showToast(`${partnerName} sent a ${event.action_name}!`);
 
           // Trigger Native Android System Notification while the app is active/backgrounded
@@ -120,7 +131,7 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       supabase.removeChannel(pairSub);
       supabase.removeChannel(eventSub);
     };
-  }, [pair.id, user.id, activeScene, displayCharacter, onPairReset]);
+  }, [pair.id, user.id, displayCharacter, onPairReset]);
 
   useEffect(() => {
     if (!secretTapCount) return undefined;
@@ -171,8 +182,25 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
   const handleChangeScene = async (e) => {
     const newScene = e.target.value;
-    setActiveScene(newScene);
-    await supabase.from('pairs').update({ active_scene: newScene }).eq('id', pair.id);
+    if (!newScene) return;
+
+    setScenePickerValue(newScene);
+
+    const { error } = await supabase.from('pair_events').insert([{
+      pair_id: pair.id,
+      sender_id: user.id,
+      event_type: 'scene',
+      action_name: newScene,
+    }]);
+
+    setScenePickerValue('');
+
+    if (error) {
+      showToast(`Could not send scene: ${error.message}`);
+      return;
+    }
+
+    showToast(`Scene sent to partner: ${SCENES[newScene]?.name || 'Scene'}`);
   };
 
   const handleRemainLoggedInChange = (e) => {
@@ -290,10 +318,11 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
 
       <div className="scene-selector-wrapper scene-selector-top">
         <label className="scene-select-label" htmlFor="scene-select">
-          Scene
+          Send Scene to Partner
         </label>
         <div className="scene-select-frame">
-          <select id="scene-select" value={activeScene} onChange={handleChangeScene} className="pixel-select">
+          <select id="scene-select" value={scenePickerValue} onChange={handleChangeScene} className="pixel-select">
+            <option value="">Choose Scene</option>
             {Object.values(SCENES).map(scene => (
               <option key={scene.id} value={scene.id}>{scene.name}</option>
             ))}
