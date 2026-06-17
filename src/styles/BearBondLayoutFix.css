@@ -128,23 +128,23 @@
 
 .chat-panel {
   position: absolute;
-  left: 50%;
-  bottom: 7.9rem;
-  z-index: 45;
-  transform: translateX(-50%);
-  width: min(92vw, 390px);
-  max-height: min(64vh, 520px);
+  inset: 0.75rem;
+  z-index: 260;
+  transform: none;
+  width: auto;
+  max-height: none;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   border: 4px solid #3a220d;
   border-radius: 22px;
-  background: linear-gradient(180deg, rgba(255, 248, 220, 0.98), rgba(255, 226, 159, 0.98));
-  box-shadow: 0 10px 0 rgba(91, 54, 20, 0.92), 0 20px 34px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(180deg, rgba(255, 248, 220, 0.99), rgba(255, 226, 159, 0.99));
+  box-shadow: 0 10px 0 rgba(91, 54, 20, 0.92), 0 20px 34px rgba(0, 0, 0, 0.48);
   overflow: hidden;
 }
 
 .chat-panel-header {
-  padding: 0.85rem 0.95rem;
+  padding: 0.9rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -152,6 +152,7 @@
   background: linear-gradient(180deg, #9b5f26, #613913);
   color: #fff5d6;
   border-bottom: 4px solid #3a220d;
+  flex: 0 0 auto;
 }
 
 .chat-panel-header h2 {
@@ -172,24 +173,28 @@
 }
 
 .chat-close-btn {
-  width: 2.15rem;
-  height: 2.15rem;
+  width: 2.85rem;
+  height: 2.85rem;
   border: 3px solid #3a220d;
-  border-radius: 12px;
-  background: #ffe2a1;
-  color: #3a220d;
+  border-radius: 14px;
+  background: #ff4d4d;
+  color: #fffaf0;
   font-weight: 900;
-  box-shadow: 0 4px 0 #3a220d;
+  font-size: 1.25rem;
+  box-shadow: 0 5px 0 #3a220d;
+  display: inline-grid;
+  place-items: center;
 }
 
 .chat-message-list {
-  min-height: 170px;
-  max-height: 320px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
-  padding: 0.9rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.75rem;
   background:
     linear-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px),
@@ -222,8 +227,8 @@
 }
 
 .chat-bubble {
-  max-width: 78%;
-  padding: 0.58rem 0.66rem 0.45rem;
+  max-width: 86%;
+  padding: 0.7rem 0.75rem 0.52rem;
   border: 3px solid #3a220d;
   border-radius: 16px;
   box-shadow: 0 4px 0 rgba(58, 34, 13, 0.85);
@@ -241,46 +246,58 @@
 }
 
 .chat-bubble p {
-  margin: 0 0 0.2rem;
-  font-size: 0.9rem;
-  line-height: 1.25;
+  margin: 0 0 0.28rem;
+  font-size: 1rem;
+  line-height: 1.35;
   font-weight: 800;
 }
 
 .chat-bubble span {
   display: block;
   text-align: right;
-  font-size: 0.62rem;
+  font-size: 0.66rem;
   font-weight: 900;
   opacity: 0.65;
 }
 
 .chat-compose {
-  padding: 0.75rem;
-  display: flex;
-  gap: 0.55rem;
+  padding: 0.9rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.65rem;
+  align-items: stretch;
   border-top: 4px solid #3a220d;
   background: rgba(92, 53, 17, 0.95);
+  flex: 0 0 auto;
 }
 
-.chat-compose input {
+.chat-compose input,
+.chat-compose textarea {
   flex: 1;
   min-width: 0;
-  padding: 0.72rem 0.75rem;
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0.9rem;
   border: 3px solid #3a220d;
   border-radius: 14px;
   background: #fffaf0;
   color: #3a220d;
+  -webkit-text-fill-color: #3a220d;
+  font-size: 0.95rem;
+  line-height: 1.4;
   font-weight: 800;
   box-shadow: inset 0 3px 0 rgba(58, 34, 13, 0.18);
 }
 
-.chat-compose input::placeholder {
+.chat-compose input::placeholder,
+.chat-compose textarea::placeholder {
   color: rgba(58, 34, 13, 0.55);
+  -webkit-text-fill-color: rgba(58, 34, 13, 0.55);
 }
 
 .chat-compose .pixel-btn {
-  min-width: 4.6rem;
+  width: auto;
+  min-width: 5.2rem;
   padding-left: 0.7rem;
   padding-right: 0.7rem;
 }
@@ -301,11 +318,16 @@
   }
 
   .chat-panel {
-    bottom: 6.95rem;
-    max-height: min(62vh, 450px);
+    inset: 0.55rem;
+    max-height: none;
   }
 
   .chat-message-list {
-    max-height: 250px;
+    max-height: none;
+  }
+
+  .chat-compose input,
+  .chat-compose textarea {
+    min-height: 4rem;
   }
 }
