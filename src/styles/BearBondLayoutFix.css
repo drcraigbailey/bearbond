@@ -1,0 +1,29 @@
+/* Keeps the partner sprite low on the phone, just above the action cards. */
+.main-scene {
+  justify-content: flex-start;
+}
+
+.scene-center {
+  flex: 0 0 auto;
+  min-height: 250px;
+  margin-top: auto;
+  padding-top: 0;
+  padding-bottom: 0.45rem;
+  align-items: flex-end;
+}
+
+.bottom-ui {
+  margin-top: 0;
+}
+
+@media (max-height: 760px) {
+  .scene-center {
+    min-height: 220px;
+    padding-bottom: 0.25rem;
+  }
+
+  .bear-sprite-wrapper {
+    width: 225px;
+    height: 225px;
+  }
+}
