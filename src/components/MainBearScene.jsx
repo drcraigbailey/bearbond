@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase, getRemainLoggedInPreference, setRemainLoggedInPreference } from '../lib/supabaseClient';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import BearSprite from './BearSprite';
@@ -112,24 +112,87 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   const [secretTapCount, setSecretTapCount] = useState(0);
   const [remainLoggedIn, setRemainLoggedIn] = useState(getRemainLoggedInPreference());
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const lastSeenActionAtRef = useRef(pair.last_action_at || null);
+  const lastSeenSceneAtRef = useRef(pair.last_scene_at || null);
 
   // If I picked Yogi, display Craig. If I picked Craig, display Yogi.
   const displayCharacter = profile.character === 'yogi' ? 'craig' : 'yogi';
 
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 5000);
+  };
+
+  const getPartnerName = () => displayCharacter.charAt(0).toUpperCase() + displayCharacter.slice(1);
+
+  const handleIncomingAction = async (actionName) => {
+    const partnerName = getPartnerName();
+    setCurrentAnimation(actionName);
+    showToast(`${partnerName} sent a ${actionName}!`);
+
+    try {
+      await sendLocalActionNotification({ partnerName, actionName });
+    } catch (error) {
+      console.log('Could not schedule local notification.', error);
+    }
+  };
+
+  const handleIncomingScene = async (sceneId) => {
+    const nextSceneData = SCENES[sceneId];
+    if (!nextSceneData) return;
+
+    const partnerName = getPartnerName();
+    const sceneNotificationBody = `${partnerName} changed your scene to ${nextSceneData.name}! 🏞️`;
+
+    setActiveScene(sceneId);
+    showToast(sceneNotificationBody);
+
+    try {
+      await sendLocalActionNotification({
+        partnerName,
+        actionName: nextSceneData.name,
+        notificationBody: sceneNotificationBody,
+      });
+    } catch (error) {
+      console.log('Could not schedule local scene notification.', error);
+    }
+  };
+
   useEffect(() => {
     setupLocalNotifications();
 
-    // 1. Subscribe to Room changes (partner joining/leaving)
     const pairSub = supabase.channel(`pair_updates_${pair.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` }, 
-      (payload) => {
-        if (payload.new.user_one_id !== user.id && payload.new.user_two_id !== user.id) {
+      async (payload) => {
+        const updatedPair = payload.new;
+
+        if (updatedPair.user_one_id !== user.id && updatedPair.user_two_id !== user.id) {
           showToast('Pairing was reset.');
           if (onPairReset) onPairReset();
           return;
         }
 
-        setIsPartnerConnected(!!payload.new.user_two_id);
+        setIsPartnerConnected(!!updatedPair.user_two_id);
+
+        if (
+          updatedPair.last_action &&
+          updatedPair.last_action_from !== user.id &&
+          updatedPair.last_action_at &&
+          updatedPair.last_action_at !== lastSeenActionAtRef.current
+        ) {
+          lastSeenActionAtRef.current = updatedPair.last_action_at;
+          await handleIncomingAction(updatedPair.last_action);
+        }
+
+        if (
+          updatedPair.last_scene &&
+          updatedPair.last_scene_from !== user.id &&
+          updatedPair.last_scene_at &&
+          updatedPair.last_scene_at !== lastSeenSceneAtRef.current
+        ) {
+          lastSeenSceneAtRef.current = updatedPair.last_scene_at;
+          await handleIncomingScene(updatedPair.last_scene);
+        }
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pairs', filter: `id=eq.${pair.id}` }, 
       () => {
@@ -137,58 +200,8 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
         if (onPairReset) onPairReset();
       }).subscribe();
 
-    // 2. Subscribe to Action and Scene Events
-    const eventSub = supabase.channel(`pair_events_${pair.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pair_events', filter: `pair_id=eq.${pair.id}` }, 
-      async (payload) => {
-        const event = payload.new;
-        
-        if (event.sender_id === user.id) return;
-
-        const partnerName = displayCharacter.charAt(0).toUpperCase() + displayCharacter.slice(1);
-
-        if (event.event_type === 'scene') {
-          const nextScene = event.action_name;
-          const nextSceneData = SCENES[nextScene];
-
-          if (nextSceneData) {
-            const sceneNotificationBody = `${partnerName} changed your scene to ${nextSceneData.name}! 🏞️`;
-
-            setActiveScene(nextScene);
-            showToast(sceneNotificationBody);
-
-            try {
-              await sendLocalActionNotification({
-                partnerName,
-                actionName: nextSceneData.name,
-                notificationBody: sceneNotificationBody,
-              });
-            } catch (error) {
-              console.log('Could not schedule local scene notification.', error);
-            }
-          }
-
-          return;
-        }
-
-        if (event.event_type === 'action') {
-          setCurrentAnimation(event.action_name);
-          
-          // Show in-app pixel toast
-          showToast(`${partnerName} sent a ${event.action_name}!`);
-
-          // Trigger Native Android System Notification while the app is active/backgrounded
-          try {
-            await sendLocalActionNotification({ partnerName, actionName: event.action_name });
-          } catch (error) {
-            console.log('Could not schedule local notification.', error);
-          }
-        }
-      }).subscribe();
-
     return () => {
       supabase.removeChannel(pairSub);
-      supabase.removeChannel(eventSub);
     };
   }, [pair.id, user.id, displayCharacter, onPairReset]);
 
@@ -198,11 +211,6 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     const resetTapTimer = setTimeout(() => setSecretTapCount(0), 1800);
     return () => clearTimeout(resetTapTimer);
   }, [secretTapCount]);
-
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 5000);
-  };
 
   const sendClosedAppPush = async ({ actionName, eventType = 'action', notificationLabel }) => {
     try {
@@ -246,22 +254,29 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
   };
 
   const handleSendAction = async (actionId) => {
-    // Play the animation immediately on our screen too
     setCurrentAnimation(actionId);
-    
-    // Save to DB to trigger partner's app
-    await supabase.from('pair_events').insert([{
+    const now = new Date().toISOString();
+    lastSeenActionAtRef.current = now;
+
+    supabase.from('pair_events').insert([{
       pair_id: pair.id,
       sender_id: user.id,
       event_type: 'action',
       action_name: actionId
-    }]);
+    }]).then(({ error }) => {
+      if (error) console.warn('Could not save action event:', error.message);
+    });
 
-    await supabase.from('pairs').update({
+    const { error } = await supabase.from('pairs').update({
       last_action: actionId,
       last_action_from: user.id,
-      last_action_at: new Date().toISOString()
+      last_action_at: now
     }).eq('id', pair.id);
+
+    if (error) {
+      showToast(`Could not send action: ${error.message}`);
+      return;
+    }
 
     await sendClosedAppPush({ actionName: actionId, eventType: 'action' });
   };
@@ -270,14 +285,26 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
     const newScene = e.target.value;
     if (!newScene) return;
 
+    const sceneName = SCENES[newScene]?.name || 'Scene';
+    const now = new Date().toISOString();
+    lastSeenSceneAtRef.current = now;
+
     setScenePickerValue(newScene);
 
-    const { error } = await supabase.from('pair_events').insert([{
+    supabase.from('pair_events').insert([{
       pair_id: pair.id,
       sender_id: user.id,
       event_type: 'scene',
       action_name: newScene,
-    }]);
+    }]).then(({ error }) => {
+      if (error) console.warn('Could not save scene event:', error.message);
+    });
+
+    const { error } = await supabase.from('pairs').update({
+      last_scene: newScene,
+      last_scene_from: user.id,
+      last_scene_at: now,
+    }).eq('id', pair.id);
 
     setScenePickerValue('');
 
@@ -286,17 +313,13 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       return;
     }
 
-    const sceneName = SCENES[newScene]?.name || 'Scene';
-
-    const pushSent = await sendClosedAppPush({
+    await sendClosedAppPush({
       actionName: newScene,
       eventType: 'scene',
       notificationLabel: sceneName,
     });
 
-    if (pushSent) {
-      showToast(`Scene sent to partner: ${sceneName}`);
-    }
+    showToast(`Scene sent to partner: ${sceneName}`);
   };
 
   const handleRemainLoggedInChange = (e) => {
@@ -363,6 +386,9 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       last_action: null,
       last_action_from: null,
       last_action_at: null,
+      last_scene: null,
+      last_scene_from: null,
+      last_scene_at: null,
     };
 
     const { error } = pair.user_one_id === user.id
@@ -464,7 +490,6 @@ export default function MainBearScene({ user, pair, profile, onPairReset, onChar
       {toastMessage && <div className="toast-notification">{toastMessage}</div>}
 
       <div className="scene-center">
-        {/* Pass the displayCharacter prop down to the BearSprite engine */}
         <BearSprite 
           currentAnimation={currentAnimation} 
           onAnimationComplete={() => setCurrentAnimation('idle')} 
