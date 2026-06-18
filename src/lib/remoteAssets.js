@@ -34,7 +34,7 @@ export const loadRemoteScenes = async () => {
 
   const scenes = (data || [])
     .map((scene) => {
-      const id = cleanId(scene.id || scene.slug || scene.name);
+      const id = cleanId(scene.slug || scene.id || scene.name);
       const image = getAssetUrl({
         url: scene.image_url,
         bucket: scene.storage_bucket,
@@ -71,7 +71,7 @@ export const loadRemoteAvatars = async () => {
 
   return (data || [])
     .map((avatar) => {
-      const id = cleanId(avatar.id || avatar.slug || avatar.name);
+      const id = cleanId(avatar.slug || avatar.id || avatar.name);
       if (!id || !avatar.name) return null;
 
       const bucket = avatar.storage_bucket;
