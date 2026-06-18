@@ -9,6 +9,7 @@ import { registerPushNotifications } from './lib/pushNotifications';
 import { SCENES } from './data/scenes';
 import { AVATARS, AVATAR_SPRITES, mergeAvatarAssets } from './data/avatarSets';
 import { loadRemoteAvatars, loadRemoteScenes } from './lib/remoteAssets';
+import { updateBearBondWidget } from './lib/widgetBridge';
 import './styles/BearBond.css';
 import './styles/BearBondLayoutFix.css';
 
@@ -109,7 +110,7 @@ const mergeSceneAssets = (remoteScenes = []) => {
 };
 
 const WIDGET_PENDING_ACTION_KEY = 'bearbond.pendingWidgetAction';
-const WIDGET_ACTION_IDS = new Set(['hug', 'kiss', 'wave', 'night']);
+const WIDGET_ACTION_IDS = new Set(['kiss', 'night', 'chicken']);
 
 const getWidgetActionFromUrl = (url) => {
   if (!url) return '';
@@ -149,6 +150,7 @@ export default function App() {
   const [remoteScenes, setRemoteScenes] = useState([]);
   const [remoteAvatars, setRemoteAvatars] = useState([]);
   const [pendingWidgetAction, setPendingWidgetAction] = useState(() => getStoredWidgetAction());
+  const [lastWidgetPairActionKey, setLastWidgetPairActionKey] = useState('');
   const [loading, setLoading] = useState(true);
 
   const scenes = useMemo(() => mergeSceneAssets(remoteScenes), [remoteScenes]);
@@ -269,6 +271,8 @@ export default function App() {
         return;
       }
 
+      updateBearBondWidget(actionId, { direction: 'sent' });
+
       supabase.from('pairs').update({
         last_action: actionId,
         last_action_from: session.user.id,
@@ -302,6 +306,26 @@ export default function App() {
       cancelled = true;
     };
   }, [pendingWidgetAction, session?.user?.id, pair?.id, pair?.user_one_id, pair?.user_two_id]);
+
+  useEffect(() => {
+    if (!session?.user?.id || !pair?.id || !pair.last_action || !pair.last_action_at) return;
+
+    const nextActionKey = `${pair.id}:${pair.last_action}:${pair.last_action_from || ''}:${pair.last_action_at}`;
+    if (nextActionKey === lastWidgetPairActionKey) return;
+
+    setLastWidgetPairActionKey(nextActionKey);
+
+    updateBearBondWidget(pair.last_action, {
+      direction: pair.last_action_from === session.user.id ? 'sent' : 'received',
+    });
+  }, [
+    session?.user?.id,
+    pair?.id,
+    pair?.last_action,
+    pair?.last_action_from,
+    pair?.last_action_at,
+    lastWidgetPairActionKey,
+  ]);
 
   useEffect(() => {
     if (!session?.user?.id || !pair?.id) return undefined;
