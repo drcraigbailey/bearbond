@@ -108,6 +108,39 @@ const mergeSceneAssets = (remoteScenes = []) => {
   return mergedScenes;
 };
 
+const WIDGET_PENDING_ACTION_KEY = 'bearbond.pendingWidgetAction';
+const WIDGET_ACTION_IDS = new Set(['hug', 'kiss', 'wave', 'night']);
+
+const getWidgetActionFromUrl = (url) => {
+  if (!url) return '';
+
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== 'bearbond:' || parsedUrl.hostname !== 'widget') return '';
+
+    const actionId = parsedUrl.searchParams.get('action') || '';
+    return WIDGET_ACTION_IDS.has(actionId) ? actionId : '';
+  } catch (error) {
+    console.warn('Could not read BearBond widget URL:', error);
+    return '';
+  }
+};
+
+const getStoredWidgetAction = () => {
+  if (typeof window === 'undefined') return '';
+  return window.localStorage.getItem(WIDGET_PENDING_ACTION_KEY) || '';
+};
+
+const saveStoredWidgetAction = (actionId) => {
+  if (typeof window === 'undefined' || !actionId) return;
+  window.localStorage.setItem(WIDGET_PENDING_ACTION_KEY, actionId);
+};
+
+const clearStoredWidgetAction = () => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(WIDGET_PENDING_ACTION_KEY);
+};
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -115,12 +148,21 @@ export default function App() {
   const [pair, setPair] = useState(null);
   const [remoteScenes, setRemoteScenes] = useState([]);
   const [remoteAvatars, setRemoteAvatars] = useState([]);
+  const [pendingWidgetAction, setPendingWidgetAction] = useState(() => getStoredWidgetAction());
   const [loading, setLoading] = useState(true);
 
   const scenes = useMemo(() => mergeSceneAssets(remoteScenes), [remoteScenes]);
   const avatarAssets = useMemo(() => mergeAvatarAssets(remoteAvatars), [remoteAvatars]);
   const avatars = avatarAssets.avatars || AVATARS;
   const avatarSprites = avatarAssets.avatarSprites || AVATAR_SPRITES;
+
+  const queueWidgetAction = (url) => {
+    const actionId = getWidgetActionFromUrl(url);
+    if (!actionId) return;
+
+    saveStoredWidgetAction(actionId);
+    setPendingWidgetAction(actionId);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -170,7 +212,20 @@ export default function App() {
         await CapacitorApp.addListener('backButton', () => { CapacitorApp.minimizeApp(); });
       } catch (e) { /* Browser fallback */ }
     };
+
+    const setupWidgetDeepLinks = async () => {
+      try {
+        const launchUrl = await CapacitorApp.getLaunchUrl();
+        queueWidgetAction(launchUrl?.url);
+
+        await CapacitorApp.addListener('appUrlOpen', (event) => {
+          queueWidgetAction(event?.url);
+        });
+      } catch (e) { /* Browser fallback */ }
+    };
+
     setupBackButton();
+    setupWidgetDeepLinks();
 
     return () => {
       subscription.unsubscribe();
@@ -183,6 +238,70 @@ export default function App() {
       registerPushNotifications(session.user.id);
     }
   }, [session?.user?.id, profile?.id]);
+
+  useEffect(() => {
+    if (!pendingWidgetAction || !session?.user?.id || !pair?.id) return undefined;
+
+    const receiverId = getPartnerIdFromPair(pair, session.user.id);
+    if (!receiverId) return undefined;
+
+    let cancelled = false;
+
+    const sendWidgetAction = async () => {
+      const actionId = pendingWidgetAction;
+      const now = new Date().toISOString();
+
+      const { error } = await supabase.from('pair_commands').insert([{
+        pair_id: pair.id,
+        sender_id: session.user.id,
+        receiver_id: receiverId,
+        command_type: 'action',
+        command_name: actionId,
+      }]);
+
+      if (cancelled) return;
+
+      clearStoredWidgetAction();
+      setPendingWidgetAction('');
+
+      if (error) {
+        console.warn('Could not send widget action:', error.message);
+        return;
+      }
+
+      supabase.from('pairs').update({
+        last_action: actionId,
+        last_action_from: session.user.id,
+        last_action_at: now,
+      }).eq('id', pair.id).then(({ error }) => {
+        if (error) console.warn('Could not update widget last action:', error.message);
+      });
+
+      supabase.functions.invoke('send-action-push', {
+        body: {
+          pairId: pair.id,
+          senderId: session.user.id,
+          actionName: actionId,
+          eventType: 'action',
+          eventAt: now,
+        },
+      }).then(({ data, error }) => {
+        if (error) {
+          console.warn('Could not send widget push notification:', error.message || error);
+        } else if (data?.error) {
+          console.warn('Widget push notification error:', data.error);
+        }
+      }).catch((error) => {
+        console.warn('Could not send widget push notification:', error);
+      });
+    };
+
+    sendWidgetAction();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingWidgetAction, session?.user?.id, pair?.id, pair?.user_one_id, pair?.user_two_id]);
 
   useEffect(() => {
     if (!session?.user?.id || !pair?.id) return undefined;
