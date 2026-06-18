@@ -16,20 +16,21 @@ public class BearBondActionWidgetProvider extends AppWidgetProvider {
     private static final String EXTRA_ACTION_ID = "action_id";
     private static final String PREFS_NAME = "bearbond_widget";
     private static final String LAST_ACTION_KEY = "last_action";
+    private static final String LAST_DIRECTION_KEY = "last_direction";
 
-    private static final String[] ACTION_IDS = { "hug", "kiss", "wave", "night" };
+    private static final String[] ACTION_IDS = { "kiss", "night", "chicken" };
     private static final int[] BUTTON_IDS = {
-        R.id.widget_action_hug,
         R.id.widget_action_kiss,
-        R.id.widget_action_wave,
-        R.id.widget_action_night
+        R.id.widget_action_night,
+        R.id.widget_action_chicken
     };
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
         String lastAction = getLastAction(context);
+        String lastDirection = getLastDirection(context);
         for (int appWidgetId : appWidgetIds) {
-            updateWidget(context, appWidgetManager, appWidgetId, lastAction);
+            updateWidget(context, appWidgetManager, appWidgetId, lastAction, lastDirection);
         }
     }
 
@@ -40,18 +41,34 @@ public class BearBondActionWidgetProvider extends AppWidgetProvider {
         if (!ACTION_WIDGET_SEND.equals(intent.getAction())) return;
 
         String actionId = intent.getStringExtra(EXTRA_ACTION_ID);
-        if (!isKnownAction(actionId)) return;
+        if (!isKnownShortcut(actionId)) return;
 
-        saveLastAction(context, actionId);
-        updateAllWidgets(context, actionId);
+        updateAllWidgets(context, actionId, "sent");
         launchBearBond(context, actionId);
     }
 
-    private void updateWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId, String lastAction) {
+    public static void updateAllWidgets(Context context, String actionId, String direction) {
+        if (context == null || actionId == null || actionId.trim().isEmpty()) return;
+
+        String cleanActionId = actionId.trim().toLowerCase();
+        String cleanDirection = "received".equals(direction) ? "received" : "sent";
+
+        saveLastAction(context, cleanActionId, cleanDirection);
+
+        AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
+        ComponentName widget = new ComponentName(context, BearBondActionWidgetProvider.class);
+        int[] appWidgetIds = appWidgetManager.getAppWidgetIds(widget);
+
+        for (int appWidgetId : appWidgetIds) {
+            updateWidget(context, appWidgetManager, appWidgetId, cleanActionId, cleanDirection);
+        }
+    }
+
+    private static void updateWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId, String lastAction, String lastDirection) {
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.bearbond_action_widget);
 
         views.setTextViewText(R.id.widget_sprite, getSpriteText(lastAction));
-        views.setTextViewText(R.id.widget_status, getStatusText(lastAction));
+        views.setTextViewText(R.id.widget_status, getStatusText(lastAction, lastDirection));
 
         views.setOnClickPendingIntent(
             R.id.widget_root,
@@ -68,17 +85,7 @@ public class BearBondActionWidgetProvider extends AppWidgetProvider {
         appWidgetManager.updateAppWidget(appWidgetId, views);
     }
 
-    private void updateAllWidgets(Context context, String lastAction) {
-        AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(context);
-        ComponentName widget = new ComponentName(context, BearBondActionWidgetProvider.class);
-        int[] appWidgetIds = appWidgetManager.getAppWidgetIds(widget);
-
-        for (int appWidgetId : appWidgetIds) {
-            updateWidget(context, appWidgetManager, appWidgetId, lastAction);
-        }
-    }
-
-    private PendingIntent buildActionPendingIntent(Context context, String actionId, int appWidgetId, int requestOffset) {
+    private static PendingIntent buildActionPendingIntent(Context context, String actionId, int appWidgetId, int requestOffset) {
         Intent intent = new Intent(context, BearBondActionWidgetProvider.class);
         intent.setAction(ACTION_WIDGET_SEND);
         intent.putExtra(EXTRA_ACTION_ID, actionId);
@@ -87,18 +94,18 @@ public class BearBondActionWidgetProvider extends AppWidgetProvider {
         return PendingIntent.getBroadcast(context, requestCode, intent, pendingIntentFlags());
     }
 
-    private PendingIntent buildOpenPendingIntent(Context context, String actionId, int appWidgetId, int requestOffset) {
+    private static PendingIntent buildOpenPendingIntent(Context context, String actionId, int appWidgetId, int requestOffset) {
         Intent intent = buildBearBondIntent(context, actionId);
 
         int requestCode = (appWidgetId * 20) + 10 + requestOffset;
         return PendingIntent.getActivity(context, requestCode, intent, pendingIntentFlags());
     }
 
-    private void launchBearBond(Context context, String actionId) {
+    private static void launchBearBond(Context context, String actionId) {
         context.startActivity(buildBearBondIntent(context, actionId));
     }
 
-    private Intent buildBearBondIntent(Context context, String actionId) {
+    private static Intent buildBearBondIntent(Context context, String actionId) {
         Uri widgetUri = Uri.parse("bearbond://widget?action=" + actionId);
         Intent intent = new Intent(Intent.ACTION_VIEW, widgetUri);
         intent.setPackage(context.getPackageName());
@@ -106,40 +113,64 @@ public class BearBondActionWidgetProvider extends AppWidgetProvider {
         return intent;
     }
 
-    private String getSpriteText(String actionId) {
+    private static String getSpriteText(String actionId) {
         if ("hug".equals(actionId)) return "ʕっ•ᴥ•ʔっ";
-        if ("kiss".equals(actionId)) return "ʕ ˘ ³˘ʔ♥";
-        if ("wave".equals(actionId)) return "ʕ•ᴥ•ʔﾉ";
-        if ("night".equals(actionId)) return "ʕ-ᴥ-ʔ zZ";
+        if ("kiss".equals(actionId) || "love".equals(actionId)) return "ʕ ˘ ³˘ʔ♥";
+        if ("wave".equals(actionId) || "hello".equals(actionId)) return "ʕ•ᴥ•ʔﾉ";
+        if ("night".equals(actionId) || "sleep".equals(actionId)) return "ʕ-ᴥ-ʔ zZ";
+        if ("chicken".equals(actionId)) return "ʕ•ᴥ•ʔ🐔";
+        if ("honey".equals(actionId)) return "ʕ•ᴥ•ʔ🍯";
+        if ("cane".equals(actionId)) return "ʕ•ᴥ•ʔ╯";
+        if ("cheeky".equals(actionId)) return "ʕ¬ᴥ¬ʔ";
         return "ʕ•ᴥ•ʔ";
     }
 
-    private String getStatusText(String actionId) {
-        if ("hug".equals(actionId)) return "Hug sent";
-        if ("kiss".equals(actionId)) return "Kiss sent";
-        if ("wave".equals(actionId)) return "Wave sent";
-        if ("night".equals(actionId)) return "Night sent";
-        return "Ready to send";
+    private static String getStatusText(String actionId, String direction) {
+        if (actionId == null || actionId.trim().isEmpty()) return "Waiting for an action";
+
+        String label = getActionLabel(actionId);
+        if ("received".equals(direction)) return "Partner sent " + label;
+        return "You sent " + label;
     }
 
-    private boolean isKnownAction(String actionId) {
+    private static String getActionLabel(String actionId) {
+        if ("hug".equals(actionId)) return "Hug";
+        if ("kiss".equals(actionId) || "love".equals(actionId)) return "Kiss";
+        if ("wave".equals(actionId) || "hello".equals(actionId)) return "Wave";
+        if ("night".equals(actionId) || "sleep".equals(actionId)) return "Night";
+        if ("chicken".equals(actionId)) return "Chicken";
+        if ("honey".equals(actionId)) return "Honey";
+        if ("cane".equals(actionId)) return "Cane";
+        if ("cheeky".equals(actionId)) return "Cheeky";
+        return actionId.substring(0, 1).toUpperCase() + actionId.substring(1);
+    }
+
+    private static boolean isKnownShortcut(String actionId) {
         for (String knownAction : ACTION_IDS) {
             if (knownAction.equals(actionId)) return true;
         }
         return false;
     }
 
-    private String getLastAction(Context context) {
+    private static String getLastAction(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         return prefs.getString(LAST_ACTION_KEY, "");
     }
 
-    private void saveLastAction(Context context, String actionId) {
+    private static String getLastDirection(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putString(LAST_ACTION_KEY, actionId).apply();
+        return prefs.getString(LAST_DIRECTION_KEY, "");
     }
 
-    private int pendingIntentFlags() {
+    private static void saveLastAction(Context context, String actionId, String direction) {
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+            .putString(LAST_ACTION_KEY, actionId)
+            .putString(LAST_DIRECTION_KEY, direction)
+            .apply();
+    }
+
+    private static int pendingIntentFlags() {
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
