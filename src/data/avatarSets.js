@@ -59,6 +59,7 @@ const SPRITE_FILE_NAMES = {
   love: ['kiss.png'],
   hug: ['hug.png'],
   honey: ['honey.png'],
+  night: ['night.png'],
   sleep: ['night.png'],
   dance: ['cheeky.png'],
   celebrate: ['cane.png'],
@@ -87,6 +88,7 @@ const makeBuiltInSpriteSet = (avatarId, legacySuffix = '') => ({
   love: getBuiltInAsset(avatarId, 'love', legacySuffix),
   hug: getBuiltInAsset(avatarId, 'hug', legacySuffix),
   honey: getBuiltInAsset(avatarId, 'honey', legacySuffix),
+  night: getBuiltInAsset(avatarId, 'night', legacySuffix),
   sleep: getBuiltInAsset(avatarId, 'sleep', legacySuffix),
   dance: getBuiltInAsset(avatarId, 'dance', legacySuffix),
   celebrate: getBuiltInAsset(avatarId, 'celebrate', legacySuffix),
@@ -173,6 +175,7 @@ export const mergeAvatarAssets = (remoteAvatars = []) => {
     if (!avatar?.id) continue;
 
     const builtInFallback = BUILT_IN_AVATAR_SPRITES[avatar.id] || BUILT_IN_AVATAR_SPRITES.yogi;
+    const nightSprite = avatar.night_url || avatar.sleep_url || builtInFallback.night || builtInFallback.sleep;
 
     mergedSprites[avatar.id] = {
       idle: avatar.idle_url || avatar.preview_url || builtInFallback.idle,
@@ -181,7 +184,8 @@ export const mergeAvatarAssets = (remoteAvatars = []) => {
       love: avatar.love_url || avatar.kiss_url || builtInFallback.love,
       hug: avatar.hug_url || builtInFallback.hug,
       honey: avatar.honey_url || builtInFallback.honey,
-      sleep: avatar.sleep_url || avatar.night_url || builtInFallback.sleep,
+      night: nightSprite,
+      sleep: nightSprite,
       dance: avatar.dance_url || avatar.cheeky_url || builtInFallback.dance,
       celebrate: avatar.celebrate_url || avatar.cane_url || builtInFallback.celebrate,
       chicken: avatar.chicken_url || builtInFallback.chicken,
