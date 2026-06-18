@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { supabase } from './supabaseClient';
+import { updateBearBondWidget } from './widgetBridge';
 
 const PUSH_CHANNEL_ID = 'bearbond-actions';
 const PENDING_PUSH_EVENT_KEY = 'bearbond.pendingPushEvent';
@@ -40,6 +41,10 @@ const dispatchBearBondPushEvent = (payload) => {
     ...data,
     receivedAt: new Date().toISOString(),
   };
+
+  if ((data.eventType || 'action') === 'action') {
+    updateBearBondWidget(data.actionName, { direction: 'received' });
+  }
 
   try {
     window.localStorage.setItem(PENDING_PUSH_EVENT_KEY, JSON.stringify(eventDetail));
