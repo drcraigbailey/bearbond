@@ -15,30 +15,42 @@
         android:gravity="center"
         android:text="BearBond"
         android:textColor="#FFF7E8"
-        android:textSize="18sp"
+        android:textSize="16sp"
         android:textStyle="bold" />
 
     <TextView
-        android:id="@+id/widget_subtitle"
+        android:id="@+id/widget_sprite"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:text="ʕ•ᴥ•ʔ"
+        android:textColor="#FFF7E8"
+        android:textSize="25sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:gravity="center"
-        android:text="Send a bear ping"
+        android:text="Ready to send"
         android:textColor="#FFE0B8"
-        android:textSize="12sp" />
+        android:textSize="11sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
         android:gravity="center"
         android:orientation="horizontal">
 
         <Button
             android:id="@+id/widget_action_hug"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="36dp"
             android:layout_marginEnd="4dp"
             android:layout_weight="1"
             android:background="@drawable/bearbond_widget_button"
@@ -49,7 +61,7 @@
         <Button
             android:id="@+id/widget_action_kiss"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="36dp"
             android:layout_marginStart="4dp"
             android:layout_weight="1"
             android:background="@drawable/bearbond_widget_button"
@@ -68,7 +80,7 @@
         <Button
             android:id="@+id/widget_action_wave"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="36dp"
             android:layout_marginEnd="4dp"
             android:layout_weight="1"
             android:background="@drawable/bearbond_widget_button"
@@ -79,7 +91,7 @@
         <Button
             android:id="@+id/widget_action_night"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="36dp"
             android:layout_marginStart="4dp"
             android:layout_weight="1"
             android:background="@drawable/bearbond_widget_button"
